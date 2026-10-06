@@ -1,0 +1,332 @@
+# Grow tent soil moisture monitor
+# ESP32 + 4x DFRobot SEN0193 capacitive sensors + 0.96" SSD1306 OLED (128x64, I2C)
+#plant 1 (back left)   -> GPIO32
+#plant 2 (back right)  -> GPIO33
+#plant 3 (front right) -> GPIO34
+#olant 4 (front left)  -> GPIO35
+#OLED: VCC -> 3V3, GND -> GND, SDA -> GPIO21, SCL -> GPIO22   I2C bus A
+#AHT10: VIN -> 3V3, GND -> GND, SDA -> GPIO25, SCL -> GPIO26  I2C bus B, on its own
+#because the AHT10 misbehaves when it shares a bus
+#Touch buttons (TTP223-style, output goes HIGH when touched):
+#VCC -> 3V3, GND -> GND
+#"Next" button I/O -> GPIO27
+#"Back" button I/O -> GPIO14  
+#0.1 uF ceramic cap from each sensor pin (GPIO32-35) to GND, near the ESP32.
+#
+#Screens (tap Next / Back to cycle): Moisture -> Temperature -> Humidity -> VPD
+#
+#Calibration
+#1. Flash, then watch each plant N raw sensor in HA
+#2. DRY: sensor in the air (or bone-dry mix)  -> put that voltage in pN_dry.
+#3. WET: 30 min after a full watering to runoff -> put that voltage in pN_wet.
+#dry reads HIGHER voltage than wet on these sensors.
+
+substitutions:
+  p1_dry: "2.50"
+  p1_wet: "1.20"
+  p2_dry: "2.50"
+  p2_wet: "1.20"
+  p3_dry: "2.50"
+  p3_wet: "1.20"
+  p4_dry: "2.50"
+  p4_wet: "1.20"
+  # Leaves under LEDs usually run ~1-3 C cooler than the air. Used for leaf VPD.
+  leaf_offset_c: "2.0"
+
+esphome:
+  name: grow-moisture
+  friendly_name: Grow Moisture
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "Grow-Moisture Fallback"
+    password: !secret fallback_password
+
+captive_portal:
+
+# Watering trigger in %, adjustable from Home Assistant.
+# A plant at or below this shows "WATER" on the screen.
+number:
+  - platform: template
+    name: "Water trigger"
+    id: water_trigger
+    optimistic: true
+    restore_value: true
+    initial_value: 40
+    min_value: 5
+    max_value: 90
+    step: 1
+    unit_of_measurement: "%"
+
+sensor:
+  #raw voltages
+  - platform: adc
+    pin: GPIO32
+    name: "Plant 1 raw"
+    id: p1_raw
+    attenuation: 12db
+    update_interval: 10s
+    filters:
+      - median:
+          window_size: 7
+          send_every: 3
+  - platform: adc
+    pin: GPIO33
+    name: "Plant 2 raw"
+    id: p2_raw
+    attenuation: 12db
+    update_interval: 10s
+    filters:
+      - median:
+          window_size: 7
+          send_every: 3
+  - platform: adc
+    pin: GPIO34
+    name: "Plant 3 raw"
+    id: p3_raw
+    attenuation: 12db
+    update_interval: 10s
+    filters:
+      - median:
+          window_size: 7
+          send_every: 3
+  - platform: adc
+    pin: GPIO35
+    name: "Plant 4 raw"
+    id: p4_raw
+    attenuation: 12db
+    update_interval: 10s
+    filters:
+      - median:
+          window_size: 7
+          send_every: 3
+
+  #moisture % (calibrated)
+  - platform: copy
+    source_id: p1_raw
+    name: "Plant 1 moisture"
+    id: p1
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    filters:
+      - calibrate_linear:
+          - ${p1_dry} -> 0.0
+          - ${p1_wet} -> 100.0
+      - clamp:
+          min_value: 0
+          max_value: 100
+  - platform: copy
+    source_id: p2_raw
+    name: "Plant 2 moisture"
+    id: p2
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    filters:
+      - calibrate_linear:
+          - ${p2_dry} -> 0.0
+          - ${p2_wet} -> 100.0
+      - clamp:
+          min_value: 0
+          max_value: 100
+  - platform: copy
+    source_id: p3_raw
+    name: "Plant 3 moisture"
+    id: p3
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    filters:
+      - calibrate_linear:
+          - ${p3_dry} -> 0.0
+          - ${p3_wet} -> 100.0
+      - clamp:
+          min_value: 0
+          max_value: 100
+  - platform: copy
+    source_id: p4_raw
+    name: "Plant 4 moisture"
+    id: p4
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    filters:
+      - calibrate_linear:
+          - ${p4_dry} -> 0.0
+          - ${p4_wet} -> 100.0
+      - clamp:
+          min_value: 0
+          max_value: 100
+
+  #climate (AHT10 on bus B)
+  - platform: aht10
+    i2c_id: bus_b
+    variant: AHT10
+    update_interval: 15s
+    temperature:
+      name: "Tent temperature"
+      id: tent_temp
+      # filters:
+      #   - offset: 0.0     #correct after comparing to a thermometer then uncomment 
+    humidity:
+      name: "Tent humidity"
+      id: tent_rh
+      # filters:
+      #   - offset: 0.0
+
+  # Air VPD (kPa) from air temp + RH
+  - platform: template
+    name: "Air VPD"
+    id: vpd_air
+    unit_of_measurement: "kPa"
+    accuracy_decimals: 2
+    update_interval: 15s
+    lambda: |-
+      if (!id(tent_temp).has_state() || !id(tent_rh).has_state()) return NAN;
+      float t = id(tent_temp).state;
+      float rh = id(tent_rh).state;
+      float svp = 0.6108f * expf(17.27f * t / (t + 237.3f));
+      return svp * (1.0f - rh / 100.0f);
+
+  # Leaf VPD assumed cooler than air by leaf_offset_c
+  - platform: template
+    name: "Leaf VPD"
+    id: vpd_leaf
+    unit_of_measurement: "kPa"
+    accuracy_decimals: 2
+    update_interval: 15s
+    lambda: |-
+      if (!id(tent_temp).has_state() || !id(tent_rh).has_state()) return NAN;
+      float t = id(tent_temp).state;
+      float tl = t - ${leaf_offset_c};
+      float rh = id(tent_rh).state;
+      float svp_air  = 0.6108f * expf(17.27f * t  / (t  + 237.3f));
+      float svp_leaf = 0.6108f * expf(17.27f * tl / (tl + 237.3f));
+      return svp_leaf - svp_air * rh / 100.0f;
+
+#touch button
+binary_sensor:
+  - platform: gpio
+    pin: GPIO27
+    name: "Screen next"
+    internal: true
+    filters:
+      - delayed_on: 30ms
+    on_press:
+      - display.page.show_next: oled
+      - component.update: oled
+  - platform: gpio            #optional "back" button comment block to remove
+    pin: GPIO14
+    name: "Screen back"
+    internal: true
+    filters:
+      - delayed_on: 30ms
+    on_press:
+      - display.page.show_previous: oled
+      - component.update: oled
+
+i2c:
+  - id: bus_a
+    sda: GPIO21
+    scl: GPIO22
+  - id: bus_b
+    sda: GPIO25
+    scl: GPIO26
+
+font:
+  - file: "gfonts://Roboto"
+    id: f_small
+    size: 11
+  - file: "gfonts://Roboto@700"
+    id: f_big
+    size: 14
+  - file: "gfonts://Roboto@700"
+    id: f_huge
+    size: 30
+
+display:
+  - platform: ssd1306_i2c
+    id: oled
+    i2c_id: bus_a
+    model: "SSD1306 128x64"
+    address: 0x3C
+    update_interval: 2s
+    pages:
+      #page1:soil moisture
+      - id: page_moisture
+        lambda: |-
+          it.printf(0, 0, id(f_small), "Moisture  (water <%.0f%%)", id(water_trigger).state);
+          it.line(0, 13, 127, 13);
+          auto row = [&](int y, const char *label, esphome::sensor::Sensor *s) {
+            it.print(0, y, id(f_big), label);
+            if (!s->has_state() || isnan(s->state)) {
+              it.print(40, y, id(f_big), "--");
+              return;
+            }
+            it.printf(40, y, id(f_big), "%3.0f%%", s->state);
+            if (s->state <= id(water_trigger).state) {
+              it.filled_rectangle(84, y + 1, 44, 13);
+              it.print(87, y + 1, id(f_small), COLOR_OFF, "WATER");
+            } else {
+              it.print(96, y + 1, id(f_small), "OK");
+            }
+          };
+          row(15, "P1", id(p1));
+          row(27, "P2", id(p2));
+          row(39, "P3", id(p3));
+          row(51, "P4", id(p4));
+
+      #Page2:temperature
+      - id: page_temp
+        lambda: |-
+          it.print(0, 0, id(f_small), "Temperature");
+          it.line(0, 13, 127, 13);
+          if (id(tent_temp).has_state()) {
+            float c = id(tent_temp).state;
+            it.printf(64, 36, id(f_huge), TextAlign::CENTER, "%.1f F", c * 9.0f / 5.0f + 32.0f);
+            it.printf(64, 63, id(f_small), TextAlign::BOTTOM_CENTER, "%.1f C   target 70-85 F", c);
+          } else {
+            it.print(64, 36, id(f_huge), TextAlign::CENTER, "--");
+          }
+
+      #Page 3: humidity
+      - id: page_rh
+        lambda: |-
+          it.print(0, 0, id(f_small), "Humidity");
+          it.line(0, 13, 127, 13);
+          if (id(tent_rh).has_state()) {
+            it.printf(64, 36, id(f_huge), TextAlign::CENTER, "%.0f%%", id(tent_rh).state);
+            it.print(64, 63, id(f_small), TextAlign::BOTTOM_CENTER, "veg 55-70  flower 40-55");
+          } else {
+            it.print(64, 36, id(f_huge), TextAlign::CENTER, "--");
+          }
+
+      #Page4:VPD
+        lambda: |-
+          it.print(0, 0, id(f_small), "Leaf VPD (kPa)");
+          it.line(0, 13, 127, 13);
+          if (id(vpd_leaf).has_state() && !isnan(id(vpd_leaf).state)) {
+            float v = id(vpd_leaf).state;
+            it.printf(64, 34, id(f_huge), TextAlign::CENTER, "%.2f", v);
+            const char *zone = v < 0.4f ? "TOO LOW" :
+                               v < 0.8f ? "seedling / clone" :
+                               v < 1.2f ? "veg" :
+                               v < 1.6f ? "flower" : "TOO HIGH";
+            it.printf(64, 63, id(f_small), TextAlign::BOTTOM_CENTER, "%s  air %.2f", zone, id(vpd_air).state);
+          } else {
+            it.print(64, 34, id(f_huge), TextAlign::CENTER, "--");
+          }
