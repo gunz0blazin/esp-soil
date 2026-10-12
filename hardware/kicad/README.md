@@ -47,6 +47,16 @@ The hand-made Gerbers in `../pcb/` are the v1 board. This project is v1.1 and is
 | H1, H2 | 2.2 mm holes | `MountingHole_2.2mm_M2` | The case's locating pins go through these |
 | CASE1 | Case v2 | 3D-only | Not a real part. It's excluded from the BOM and position files. |
 
+## Reading the board
+
+- **Probe pads (P1, A + −)** along the bottom edge are where the probe's cable gets soldered after you cut its JST plug off:
+  - **A** takes the blue signal wire. It runs through R1/R2 to D1/GPIO3.
+  - **+** takes the red wire (3.3 V).
+  - **−** takes the black wire (GND).
+  - Check the wire colors against your probe's own labels before soldering, and keep the leads about 3 mm long.
+- **C2** sits in the outlined box above the probe pads on the right. It's a reserve on the 3.3 V line that covers the XIAO's Wi-Fi current bursts. **It has to go in the right way round:** long leg in the square **+** pad, striped side in the round pad. Bend it flat into the box.
+- **There are no ground traces.** The whole back layer is a GND copper pour, and every GND pad joins it through four small spokes. In KiCad, press **B** to fill it and the GND ratsnest lines go away.
+
 ## What's been checked
 
 `source/verify_kicad.py` checks the project independently, without KiCad: **33 checks pass, 0 fail.** The full output is in `source/verify-report.txt`.
