@@ -1,0 +1,13 @@
+M48
+; esp-soil stake v1.1 NPTH drill file, gen_gerbers.py
+; #@! TF.FileFunction,NonPlated,1,2,NPTH
+FMAT,2
+METRIC
+T1C2.200
+%
+G90
+G05
+T1
+X5.000Y12.500
+X13.000Y12.500
+M30

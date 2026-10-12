@@ -24,9 +24,11 @@ The full stake board as a KiCad project: schematic, PCB, footprints, 3D models f
 
 - To hide part of the case: in the PCB editor, hover over the `CASE OUTLINE` box on the F.Fab layer and press **E** to open CASE1's properties. On the **3D Models** tab, untick **Show** for the shell or the lid.
 
-## Making Gerbers
+## Gerbers
 
-Once ERC and DRC are clean: **File → Fabrication Outputs → Gerbers (.gbr)**, then **Generate Drill Files** in the same dialog. Zip the folder and upload it to the fab.
+**Ready-made:** `gerbers/esp-soil-stake-v1.1-gerbers.zip` is plotted straight from this board file by `source/gen_gerbers.py`. It has both copper layers with the back GND pour filled, both masks, both silkscreens, the outline, and PTH + NPTH drill files. It was cross-checked by reading it back with [gerbonara](https://github.com/jaseg/gerbonara), a separate Gerber parser. `gerbers/preview-v1.1.png` shows what the fab will see. Upload the zip as-is.
+
+**From KiCad**, if you change the board: once ERC and DRC are clean, **File → Fabrication Outputs → Gerbers (.gbr)**, then **Generate Drill Files** in the same dialog. Zip the folder and upload it to the fab.
 
 The hand-made Gerbers in `../pcb/` are the v1 board. This project is v1.1 and is the one to order from now on. The routing is the same; the differences are:
 
@@ -97,6 +99,7 @@ cd source
 python3 gen_kicad.py      # rewrites the project + 3D models (reads ../../case/source/gen_case.py for the case)
 python3 verify_kicad.py   # all the checks above, exit code 1 on failure
 python3 render_3d.py      # render-3d.png
+python3 gen_gerbers.py    # ../gerbers/ fab files + zip
 ```
 
 They need numpy, scikit-image and matplotlib; `pip install kiutils` for the extra parser check.

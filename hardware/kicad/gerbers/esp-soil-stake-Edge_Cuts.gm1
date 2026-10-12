@@ -1,0 +1,15 @@
+%TF.GenerationSoftware,esp-soil,gen_gerbers.py,1.1*%
+%TF.FileFunction,Profile,NP*%
+%TF.FilePolarity,Positive*%
+%FSLAX46Y46*%
+%MOMM*%
+%ADD10C,0.1000*%
+%LPD*%
+G01*
+D10*
+X0Y52000000D02*
+X24000000Y52000000D01*
+X24000000Y0D01*
+X0Y0D01*
+X0Y52000000D01*
+M02*
