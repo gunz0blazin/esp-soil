@@ -1,0 +1,62 @@
+
+Part clearance to the case (mm of air above each part, '-' = open to the lid vents/edge):
+  U1    header plastic L                              ok   gap above: 6.8
+  U1    header plastic R                              ok   gap above: 6.8
+  U1    header pins below board L                     ok   gap above: 9.4
+  U1    header pins below board R                     ok   gap above: 9.4
+  U1    header pins above XIAO L                      ok   gap above: 3.8
+  U1    header pins above XIAO R                      ok   gap above: 3.8
+  U1    XIAO PCB                                      ok   gap above: 3.6
+  U1    XIAO USB-C receptacle                         ok   gap above: 2.4
+  U1    XIAO parts (ESP32-C3, LDO, buttons)           ok   gap above: 4.2
+  U1    XIAO U.FL antenna jack                        ok   gap above: 4.4
+  J1    header plastic                                ok   gap above: 6.8
+  J1    header pins below board                       ok   gap above: 9.4
+  J1    AHT10 module PCB (assumed 16.1 x 11.2 mm)     ok   gap above: 5.2
+  J1    AHT10 sensor                                  ok   gap above: 3.6
+  P1    probe leads                                   ok   gap above: 8.8
+  P1    SEN0193 probe board (98 x 23 mm)              ok   gap above: 0.0
+  P1    SEN0193 electronics                           ok   gap above: 7.4
+  R1    R1 body+leads (KiCad model bbox)              ok   gap above: 2.8
+  R2    R2 body+leads (KiCad model bbox)              ok   gap above: 2.8
+  C1    C1 body+leads (KiCad model bbox)              ok   gap above: 6.2
+  C2    C2 body (5 x 7 mm, laid flat)                 ok   gap above: 4.4
+  C2    C2 leads                                      ok   gap above: 6.8
+
+PASS  parses: esp-soil-stake.kicad_pcb
+PASS  parses: esp-soil-stake.kicad_sch
+PASS  parses: esp-soil.kicad_sym
+PASS  parses: fp-lib-table
+PASS  parses: sym-lib-table
+PASS  parses: esp-soil.pretty/AHT10_Module_1x04_P2.54mm.kicad_mod
+PASS  parses: esp-soil.pretty/CP_Radial_D5.0mm_P2.50mm_LaidFlat_L7mm.kicad_mod
+PASS  parses: esp-soil.pretty/C_Disc_D3.0mm_W1.6mm_P2.50mm.kicad_mod
+PASS  parses: esp-soil.pretty/ESP-Soil_Stake_Case_v2.kicad_mod
+PASS  parses: esp-soil.pretty/MountingHole_2.2mm_M2.kicad_mod
+PASS  parses: esp-soil.pretty/R_Axial_DIN0204_L3.6mm_D1.6mm_P2.54mm_Vertical.kicad_mod
+PASS  parses: esp-soil.pretty/SEN0193_Wire_Pads_1x03_P2.54mm.kicad_mod
+PASS  parses: esp-soil.pretty/XIAO_ESP32C3_THT.kicad_mod
+PASS  parses: .kicad_pro (JSON)
+PASS  kiutils loads board (10 footprints, 18 tracks), schematic (22 symbols), symbol lib (11), all footprints
+PASS  ERC: 20 wires, every end lands on a pin or label
+PASS  ERC: labels ['ADC', 'PROBE_A', 'SCL', 'SDA'] each appear on 2+ pins
+PASS  ERC: every pin is connected or flagged no-connect; GND has PWR_FLAG, +3V3 driven by XIAO 3V3 (power out); no output conflicts
+PASS  parity: all 29 pads match the schematic nets; 10 footprints match 10 symbols; footprint fields agree
+PASS  connectivity: +3V3 fully routed (4 pads)
+PASS  connectivity: /ADC fully routed (4 pads)
+PASS  connectivity: /PROBE_A fully routed (2 pads)
+PASS  connectivity: /SCL fully routed (2 pads)
+PASS  connectivity: /SDA fully routed (2 pads)
+PASS  connectivity: GND (6 pads) all inside the B.Cu GND pour, which has no other copper on that layer
+PASS  DRC: clearances OK. Minimums: annular ring 0.35, pad-edge 1.60, pad-hole 2.59, pad-pad 0.37, track-edge 1.40, track-hole 1.90, track-pad 0.97, track-track 2.04
+PASS  3D: every footprint's model file exists in 3d/
+PASS  3D FIT: PCB sits in the case clean; the only case material through the board is the 2 locating pins, inside H1/H2 (1216 voxels)
+PASS  3D FIT: PCB is supported from below (2370 contact voxels on ledges/standoffs) and clamped from above (592 lid-boss contact voxels)
+PASS  3D FIT: a full-size USB-C plug (12.4 x 6.6 mm) reaches the XIAO's port through the top opening (port centre 11.5 mm above the back face; opening starts at 7.5 mm)
+PASS  3D FIT: probe board passes the bottom-wall slot and rails with no contact; 30 mm of probe inside the case, 66 mm sticks out to go in the soil
+PASS  3D FIT: room for the XIAO's FPC antenna on the lid underside over the probe: about 21 x 27 mm, 7.5 mm above the probe electronics
+PASS  rendered source/verify-pcb-and-fit.png
+WARN  3D FIT: U1: untrimmed header pins (4.4 mm below the board) would hit the case floor: trim them to under 2.7 mm after soldering
+WARN  3D FIT: J1: untrimmed header pins (4.4 mm below the board) would hit the case floor: trim them to under 2.7 mm after soldering
+
+33 passed, 2 warnings, 0 failures

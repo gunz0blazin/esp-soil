@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "esp-soil")(type "KiCad")(uri "${KIPRJMOD}/esp-soil.pretty")(options "")(descr "ESP-Soil stake parts"))
+)

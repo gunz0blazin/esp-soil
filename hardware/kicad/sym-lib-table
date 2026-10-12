@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "esp-soil")(type "KiCad")(uri "${KIPRJMOD}/esp-soil.kicad_sym")(options "")(descr "ESP-Soil stake parts"))
+)

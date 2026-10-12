@@ -4,12 +4,9 @@ Soil moisture stakes for my grow tent. Each pot gets one: a little board with an
 
 I built it because "water when it starts to wilt" was a bad system, and weighing pots wasn't consistent enough. My partner helps with watering, so I wanted a dashboard either of us can check on a phone.
 
-> **Status:** the breadboard version works and is graphing in Grafana. The stake PCB and snap-fit case are designed but haven't been built yet. The PCB was laid out without KiCad, so check the Gerbers in your fab's viewer before ordering.
+> **Status:** the breadboard version works and is graphing in Grafana. The stake PCB and snap-fit case are designed but haven't been built yet. The board is now a full KiCad project (`hardware/kicad/`) with the case in its 3D view. Run ERC/DRC there and plot Gerbers from it before ordering.
 
-<p>
-  <img src="docs/images/pcb-top.png" height="260" alt="stake PCB top">
-  <img src="docs/images/pcb-bottom.png" height="260" alt="stake PCB bottom">
-</p>
+![stake board in the case, KiCad 3D models](docs/images/kicad-3d.png)
 
 ---
 
@@ -22,7 +19,8 @@ firmware/
   moisture-test-probe-only.yaml   same board, probe + OLED only
   legacy/                  the original 4-probe OLED + touch button build
 hardware/
-  pcb/                     Gerbers, build guide PDF, generator scripts
+  kicad/                   KiCad project: schematic, PCB, 3D models + the case for fit checks
+  pcb/                     v1 hand-made Gerbers, build guide PDF
   case/                    snap-fit case (3MF), OpenSCAD file, print notes
   legacy/                  case for the old 4-probe box
 dashboard/                 Prometheus + Grafana in Docker, with the dashboard
@@ -47,17 +45,17 @@ There's no screen. Everything goes to Grafana, and there's a small web page on e
 
 | Part | Notes |
 |---|---|
-| Seeed XIAO ESP32-C3 | On 1x7 headers |
+| Seeed XIAO ESP32-C3 | On 1x7 headers. Trim the pins under the board. Stick its FPC antenna to the inside of the lid |
 | [DFRobot SEN0193](https://www.dfrobot.com/product-1385.html) capacitive soil probe | Cut off the JST plug, solder it straight to the board |
-| AHT10 module | Check the pin order is VIN GND SCL SDA |
+| AHT10 module | Check the pin order is VIN GND SCL SDA. Trim the header pins under the board |
 | 10k + 33k resistors | Voltage divider, the C3's ADC tops out around 2.5 V |
 | 0.1 µF ceramic cap | ADC noise filter |
-| 100 µF electrolytic, 6.3 V+ | Lay it flat |
-| Stake PCB | 24 x 52 mm, 2 layers. Gerbers in `hardware/pcb/` |
+| 100 µF electrolytic, 6.3 V+ | 5 mm across, 7 mm long max. Lay it flat |
+| Stake PCB | 24 x 52 mm, 2 layers. KiCad project in `hardware/kicad/` |
 | Printed case | `hardware/case/`, PETG |
 | USB-C cable | Right-angle ones lie flat on the soil |
 
-Everything is through-hole. The full schematic, layout and assembly order are in `hardware/pcb/esp-soil-stake-build.pdf`. That PDF lists M2 screws, but the v2 case snaps together so you don't need them.
+Everything is through-hole. Open `hardware/kicad/esp-soil-stake.kicad_pro` in KiCad 8+ for the schematic, the board and a 3D view with the case. [`hardware/kicad/README.md`](hardware/kicad/README.md) covers running the checks and making Gerbers. The assembly order is in `hardware/pcb/esp-soil-stake-build.pdf`. That PDF lists M2 screws, but the v2 case snaps together so you don't need them.
 
 ### Pins
 
