@@ -20,7 +20,9 @@ This uses Tailscale's **default, open policy**: every device on your tailnet can
 
 ## 1. The Pi (subnet router)
 
-SSH into the Pi on the site network.
+**`deploy/bootstrap.sh` does this whole step for you**: it installs Tailscale, turns on forwarding, works out the VLAN's subnet from the Pi's address, and runs `tailscale up` with the route and the name `esp-soil-pi`. Open the login link it prints, then go to [step 2](#2-admin-console). See [`README.md`](README.md#run-the-bootstrap) for its options.
+
+The manual steps, if you skipped it (`--no-tailscale`) or want to know what it does. SSH into the Pi on the site network.
 
 **Install Tailscale:**
 
@@ -39,7 +41,7 @@ sudo sysctl -p /etc/sysctl.d/99-tailscale.conf
 **Join the tailnet and share the VLAN:**
 
 ```bash
-sudo tailscale up --advertise-routes=10.42.0.0/24
+sudo tailscale up --advertise-routes=10.42.0.0/24 --hostname=esp-soil-pi
 ```
 
 It prints a login link. Open it and log in with your Tailscale account.
@@ -58,7 +60,7 @@ On the **Machines** page of the Tailscale admin console:
 
 1. **Approve the route.** The Pi shows a **Subnets** badge. Open the Pi → **Subnets** → **Edit**, tick `10.42.0.0/24`, and save. Until you do, nothing can reach the stakes.
 2. **Disable key expiry** on the Pi: its **…** menu → **Disable key expiry**. **Don't skip this.** Keys expire after a few months by default, and an expired key cuts the site off until someone logs in on site.
-3. **Rename it** to something clear, like `esp-soil-pi`. With MagicDNS (on by default) that name works as a hostname everywhere on your tailnet.
+3. Check it's called **`esp-soil-pi`** (the bootstrap sets that name). With MagicDNS (on by default) that name works as a hostname everywhere on your tailnet.
 
 Do step 2 for Home Assistant too once it's joined (step 3 below).
 

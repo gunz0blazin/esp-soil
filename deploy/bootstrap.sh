@@ -5,9 +5,25 @@
 #   sudo /tmp/esp-soil/deploy/bootstrap.sh
 #
 # Installs Docker, Ansible, git and rsync; creates /etc/esp-soil and asks for the
-# secrets; installs the deploy command and the 5-minute timer; runs the first deploy.
+# secrets; installs the deploy command and the 5-minute timer; runs the first deploy;
+# then sets the Pi up as a Tailscale subnet router for the site VLAN (deploy/TAILSCALE.md).
 # Safe to run again: it skips anything already done and never overwrites a secret.
+#
+# Options:
+#   --no-tailscale           skip the Tailscale step
+# Environment (all optional):
+#   TS_ROUTES=10.42.0.0/24   subnet to share; default: the subnet of the Pi's main interface
+#   TS_HOSTNAME=esp-soil-pi  the Pi's name on the tailnet; default: esp-soil-pi
+#   TS_AUTHKEY=tskey-...     log in with an auth key instead of opening the printed link
 set -eu
+
+SETUP_TAILSCALE=yes
+for arg in "$@"; do
+  case "$arg" in
+    --no-tailscale) SETUP_TAILSCALE=no ;;
+    *) echo "Unknown option: $arg" >&2; exit 1 ;;
+  esac
+done
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Run with sudo." >&2; exit 1
@@ -78,6 +94,47 @@ echo "==> First deploy (pulls images, can take a few minutes)"
 /usr/local/bin/esp-soil-deploy --force
 systemctl start esp-soil-deploy.timer
 
+TS_DONE=no
+if [ "$SETUP_TAILSCALE" = yes ]; then
+  echo "==> Tailscale (subnet router for the site VLAN)"
+  if ! command -v tailscale >/dev/null 2>&1; then
+    curl -fsSL https://tailscale.com/install.sh | sh
+  fi
+
+  # Let the Pi forward traffic between the tailnet and the VLAN.
+  printf 'net.ipv4.ip_forward = 1\nnet.ipv6.conf.all.forwarding = 1\n' > /etc/sysctl.d/99-tailscale.conf
+  sysctl -q -p /etc/sysctl.d/99-tailscale.conf
+
+  # The subnet to share: the one the Pi's main interface is on, unless TS_ROUTES says otherwise.
+  if [ -z "${TS_ROUTES:-}" ]; then
+    iface=$(ip route show default | awk '{print $5; exit}')
+    cidr=$(ip -4 -o addr show dev "$iface" scope global | awk '{print $4; exit}')
+    TS_ROUTES=$(python3 -c 'import ipaddress, sys; print(ipaddress.ip_interface(sys.argv[1]).network)' "$cidr")
+    echo "    Pi is $cidr on $iface, sharing $TS_ROUTES (set TS_ROUTES to change)"
+  fi
+  TS_HOSTNAME=${TS_HOSTNAME:-esp-soil-pi}
+
+  state=$(tailscale status --json 2>/dev/null \
+    | python3 -c 'import json, sys; print(json.load(sys.stdin).get("BackendState", ""))' 2>/dev/null || true)
+  if [ "$state" = Running ]; then
+    echo "    already logged in; making sure the route and name are set"
+    tailscale set --advertise-routes="$TS_ROUTES" --hostname="$TS_HOSTNAME"
+  elif [ -n "${TS_AUTHKEY:-}" ]; then
+    tailscale up --auth-key="$TS_AUTHKEY" --advertise-routes="$TS_ROUTES" --hostname="$TS_HOSTNAME"
+  else
+    echo "    Open the link below and log in to your Tailscale account:"
+    tailscale up --advertise-routes="$TS_ROUTES" --hostname="$TS_HOSTNAME"
+  fi
+  TS_DONE=yes
+fi
+
 echo
 echo "Done. Grafana: http://$(hostname -I | awk '{print $1}'):3000 (user admin)"
 echo "The Pi now checks GitHub every 5 minutes. Logs: journalctl -u esp-soil-deploy"
+if [ "$TS_DONE" = yes ]; then
+  echo
+  echo "Two clicks left in the Tailscale admin console, Machines page (deploy/TAILSCALE.md):"
+  echo "  1. $TS_HOSTNAME: Subnets -> Edit -> approve $TS_ROUTES"
+  echo "  2. $TS_HOSTNAME: ... menu -> Disable key expiry  (or the site drops off in a few months)"
+  echo "Then Grafana is at http://$TS_HOSTNAME:3000 from anywhere on your tailnet."
+fi

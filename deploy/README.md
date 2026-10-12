@@ -72,6 +72,16 @@ Then it:
 2. Saves the secrets in `/etc/esp-soil/`, readable only by root.
 3. Installs `esp-soil-deploy` and a systemd timer that runs it every 5 minutes.
 4. Runs the first deploy. Pulling the images takes a few minutes the first time.
+5. Sets up **Tailscale** as a subnet router for the site VLAN: installs it, turns on IP forwarding, and shares the subnet the Pi is on (e.g. `10.42.0.0/24`) under the name `esp-soil-pi`. It prints a login link; open it and log in. At the end it reminds you of the two clicks left in the Tailscale admin console: approve the route, and disable key expiry. Details: [`TAILSCALE.md`](TAILSCALE.md).
+
+Options for the Tailscale step:
+
+| To | Run |
+|---|---|
+| Skip it | `sudo deploy/bootstrap.sh --no-tailscale` |
+| Share a different subnet | `sudo TS_ROUTES=10.50.0.0/24 deploy/bootstrap.sh` |
+| Use another tailnet name | `sudo TS_HOSTNAME=soil-site-pi deploy/bootstrap.sh` |
+| Log in without a browser | `sudo TS_AUTHKEY=tskey-... deploy/bootstrap.sh` (an auth key from the admin console) |
 
 When it finishes, Grafana is at `http://<pi-ip>:3000` (user `admin`) with the **Soil Monitor** dashboard as the home page. Running the bootstrap again is safe: it skips what's done and never overwrites a secret.
 
