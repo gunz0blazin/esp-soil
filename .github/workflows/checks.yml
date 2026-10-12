@@ -157,9 +157,11 @@ jobs:
       - name: Grafana loaded the dashboard and data source
         run: |
           PW=$(sudo cat /etc/esp-soil/grafana_admin_password)
-          curl -fsS -u "admin:$PW" http://127.0.0.1:3000/api/search?query=Soil | tee search.json
-          grep -q '"uid":"soil-monitor"' search.json
-          curl -fsS -u "admin:$PW" http://127.0.0.1:3000/api/datasources/uid/prometheus/health
+          ci/run.sh "Grafana search" curl -sS --fail-with-body -u "admin:$PW" "http://127.0.0.1:3000/api/search?query=Soil" > search.json
+          cat search.json
+          grep -q '"uid":"soil-monitor"' search.json || { ci/run.sh "Grafana provisioning log" sh -c 'docker logs esp-soil-grafana 2>&1 | grep -iE "provision|dashboard|error" | tail -30; exit 1'; exit 1; }
+          ci/run.sh "Grafana dashboard" curl -sS --fail-with-body -u "admin:$PW" http://127.0.0.1:3000/api/dashboards/uid/soil-monitor -o dash.json
+          ci/run.sh "Grafana datasource health" curl -sS --fail-with-body -u "admin:$PW" http://127.0.0.1:3000/api/datasources/uid/prometheus/health
 
       - name: Prometheus found every stake in targets/
         run: |
@@ -189,4 +191,4 @@ jobs:
 
       - name: Logs on failure
         if: failure()
-        run: docker compose -p esp-soil -f /opt/esp-soil/dashboard/docker-compose.yml logs --tail 80 || true
+        run: ci/run.sh "container logs" sh -c 'docker compose -p esp-soil -f /opt/esp-soil/dashboard/docker-compose.yml logs --tail 30 grafana; exit 1' || true
