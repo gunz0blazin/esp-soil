@@ -506,6 +506,8 @@ The stakes and a Raspberry Pi live at a site that can be off your home network. 
 
 **Why the Pi pulls instead of GitHub pushing:** nothing on the internet can make the Pi run code. It only ever pulls `main`, and only you can merge to `main`. No ports are opened at the site.
 
+**First deployment, in order:** [Going live, step by step](deploy/README.md#going-live-step-by-step).
+
 **Setting it up** (Pi bootstrap, secrets, notifications, the ESPHome add-on, day-to-day steps, rollbacks and troubleshooting): [`deploy/README.md`](deploy/README.md). Remote access to the site: [`deploy/TAILSCALE.md`](deploy/TAILSCALE.md).
 
 ---
