@@ -1,5 +1,6 @@
 # ESPHome
 secrets.yaml
+dashboard/prometheus/esp_web_password
 .esphome/
 **/.esphome/
 

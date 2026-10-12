@@ -13,6 +13,7 @@ services:
       - --storage.tsdb.retention.time=2y      # keep 2 years of grow data
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/esp_web_password:/etc/prometheus/esp_web_password:ro   # stake login, see SETUP.md
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"

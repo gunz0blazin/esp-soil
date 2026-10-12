@@ -31,6 +31,33 @@ docker compose up -d
 
 Give the ESP32 a fixed IP in UniFi so the address in `prometheus.yml` never changes.
 
+## Board login (web page + /metrics)
+
+The firmware puts a username/password on each board's web page, and that login also covers `/metrics`, so Prometheus has to log in too. Use the same password everywhere.
+
+1. In ESPHome's `secrets.yaml` (the HA add-on's config folder), add:
+   ```yaml
+   web_username: "grow"
+   web_password: "your-long-password"
+   ```
+   Then flash/OTA each board.
+2. On the Prometheus server, create the password file **before** starting or restarting the stack. If it's missing, Docker creates a folder with that name instead and every scrape fails.
+   ```bash
+   cd dashboard
+   printf '%s' 'your-long-password' > prometheus/esp_web_password
+   chmod 644 prometheus/esp_web_password   # Prometheus runs as user "nobody" inside the container
+   docker compose up -d --force-recreate prometheus
+   ```
+   The username in `prometheus/prometheus.yml` (`grow`) must match `web_username`.
+3. Check it:
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' http://<board-ip>/metrics              # 401 = login is on
+   curl -s -u grow:your-long-password http://<board-ip>/metrics | head             # metrics come back
+   ```
+   And `http://<server-ip>:9090/targets` should show every board **UP**. A **401** there means the password file doesn't match the board.
+
+Boards still on firmware without a login ignore the credentials, so you can flash them one at a time.
+
 ## 3. Phone
 
 - Home Wi-Fi: open `http://<server-ip>:3000` and "Add to Home Screen". Panels stack into one column on a phone.

@@ -40,9 +40,17 @@ api:
 ota:
   - platform: esphome
 
-# Serves http://<board-ip>/metrics for Prometheus/Grafana
+# Grafana/Prometheus reads http://<board-ip>/metrics
+# Login protects the web page AND /metrics. Prometheus logs in with the same
+# user/password (see dashboard/prometheus/prometheus.yml).
+# type: basic is required: Prometheus can't do digest, and ESPHome's default
+# switches to digest in 2027.1.
 web_server:
   port: 80
+  auth:
+    username: !secret web_username
+    password: !secret web_password
+    type: basic
 
 prometheus:
 

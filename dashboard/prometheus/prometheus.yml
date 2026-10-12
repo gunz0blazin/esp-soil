@@ -4,6 +4,14 @@ global:
 scrape_configs:
   - job_name: esphome
     metrics_path: /metrics
+    # Boards are flashed with a web_server login (web_username / web_password in
+    # the ESPHome secrets.yaml). Prometheus sends it on every scrape. Boards
+    # without a login just ignore it, so old and new firmware can share this job.
+    # The password lives in esp_web_password next to this file (gitignored),
+    # mounted into the container by docker-compose.yml.
+    basic_auth:
+      username: grow
+      password_file: /etc/prometheus/esp_web_password
     static_configs:
       # Breadboard test board (firmware/moisture-test.yaml)
       - targets:
