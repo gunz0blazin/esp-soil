@@ -1,5 +1,10 @@
 # esp-soil
 
+> **This is the `testing` branch.** It holds changes that are written but not yet running on the stakes or the dashboard server. `main` matches what's deployed right now. To see exactly what's new here, compare the branches: [`main...testing`](../../compare/main...testing). Once a change is flashed and checked on real hardware, it gets merged into `main` with a pull request.
+>
+> **In testing now**
+> - **Board login:** the stake web page and `/metrics` require a username and password (`web_username` / `web_password` in `secrets.yaml`, HTTP basic auth). Prometheus logs in using a password file. Setup and checks are in [`dashboard/SETUP.md`](dashboard/SETUP.md#board-login-web-page--metrics).
+
 Wi-Fi soil moisture stakes. Each stake is a small board with an ESP32-C3, a capacitive soil probe and an AHT10 temperature/humidity sensor in a 3D printed case. Push it into the soil like a plant marker and plug in a USB cable. It reports soil moisture, temperature, humidity and VPD over Wi-Fi to ESPHome / Home Assistant and Prometheus, and the included Grafana stack graphs it.
 
 > **Status:** the breadboard version works and is graphing in Grafana. The stake PCB and snap-fit case are designed but haven't been built yet. The board is now a full KiCad project (`hardware/kicad/`) with the case in its 3D view. Run ERC/DRC there and plot Gerbers from it before ordering.
@@ -80,7 +85,7 @@ It runs off USB, about 0.3 W per stake. A multi-port USB charger with a cable to
 
 You need [ESPHome](https://esphome.io/), either standalone or the Home Assistant add-on.
 
-1. Copy `secrets.example.yaml` to `secrets.yaml` and fill in your Wi-Fi. It's in `.gitignore`.
+1. Copy `secrets.example.yaml` to `secrets.yaml` and fill in your Wi-Fi and the board login (`web_username` / `web_password`). It's in `.gitignore`.
 2. Open `firmware/soil-stake.yaml` and change the top for each stake:
    ```yaml
    substitutions:
