@@ -1,8 +1,6 @@
 # esp-soil
 
-Soil moisture stakes for my grow tent. Each pot gets one: a little board with an ESP32, a capacitive soil probe and an AHT10 for temp and humidity, in a 3D printed case. You push the whole thing into the soil like a plant marker and plug in a USB cable. It reports moisture, temperature, humidity and VPD over Wi-Fi, and I graph it all in Grafana.
-
-I built it because "water when it starts to wilt" was a bad system, and weighing pots wasn't consistent enough. My partner helps with watering, so I wanted a dashboard either of us can check on a phone.
+Wi-Fi soil moisture stakes. Each stake is a small board with an ESP32-C3, a capacitive soil probe and an AHT10 temperature/humidity sensor in a 3D printed case. Push it into the soil like a plant marker and plug in a USB cable. It reports soil moisture, temperature, humidity and VPD over Wi-Fi to ESPHome / Home Assistant and Prometheus, and the included Grafana stack graphs it.
 
 > **Status:** the breadboard version works and is graphing in Grafana. The stake PCB and snap-fit case are designed but haven't been built yet. The board is now a full KiCad project (`hardware/kicad/`) with the case in its 3D view. Run ERC/DRC there and plot Gerbers from it before ordering.
 
@@ -14,7 +12,7 @@ I built it because "water when it starts to wilt" was a bad system, and weighing
 
 ```
 firmware/
-  soil-stake.yaml          the stake firmware (one per pot)
+  soil-stake.yaml          the stake firmware (one per stake)
   moisture-test.yaml       breadboard test board: probe + AHT10 + OLED
   moisture-test-probe-only.yaml   same board, probe + OLED only
   legacy/                  the original 4-probe OLED + touch button build
@@ -74,7 +72,7 @@ Two parts, snaps together, no screws. Both print without supports. The probe sti
 
 ### Power
 
-It runs off USB, about 0.3 W per stake. I use one multi-port USB charger outside the tent with a cable to each pot. A power bank won't last a grow: it would take 150,000+ mAh for 100 days, and lots of power banks shut off at a draw this low anyway.
+It runs off USB, about 0.3 W per stake. A multi-port USB charger with a cable to each stake works well. Power banks aren't practical for long-term monitoring: 100 days would take 150,000+ mAh, and many power banks shut off at a draw this low anyway.
 
 ---
 
@@ -86,7 +84,7 @@ You need [ESPHome](https://esphome.io/), either standalone or the Home Assistant
 2. Open `firmware/soil-stake.yaml` and change the top for each stake:
    ```yaml
    substitutions:
-     plant: "1"
+     plant: "1"            # stake number, used in the sensor names
      node_name: soil-stake-1
    ```
 3. Flash over USB the first time. After that it updates over Wi-Fi.
@@ -104,20 +102,20 @@ Out of the box the % means nothing. Every probe reads a little different, so eac
 
 The probe voltage goes **down** as the soil gets wetter. On the stake you're reading it after the divider, so expect roughly 1.9 V dry and 0.9 V soaked.
 
-1. Watch **Plant N raw** in Grafana, the stake's web page, or the logs.
+1. Watch the stake's **raw** sensor (`Plant N raw`) in Grafana, the stake's web page, or the logs.
 2. **Dry:** probe in the air or bone-dry mix. That's `dry_v`.
-3. **Wet:** in its pot, watered to runoff, 30 minutes later. That's `wet_v`.
+3. **Wet:** in the soil, watered until it drains, 30 minutes later. That's `wet_v`.
 4. Put both in the substitutions and reflash.
 
-0% means "as dry as my reference" and 100% means "right after a full watering." It's not actual water content, just a consistent scale.
+0% means "as dry as the dry reference" and 100% means "right after a full watering." It's not actual water content, just a consistent scale.
 
 ### Keeping readings honest
 
-- Same depth in every pot, and don't move a stake during the grow. Moving it changes the reading.
+- Same depth for every stake, and don't move a stake once it's calibrated. Moving it changes the reading.
 - Press the soil firmly around the probe so there's no air gap.
 - Only the probe below its line goes in the soil. The case keeps the electronics above it.
 - Fertilizer salts slowly push readings up. If the numbers creep up for no reason, redo the wet value.
-- The AHT10 sits right at soil level, so it reads warmer and more humid than the canopy. The ESP also warms the board a bit. Compare against a thermometer you trust once and set the offset in the YAML.
+- The AHT10 sits right at soil level, so it reads warmer and more humid than the air higher up. The ESP also warms the board a bit. Compare against a thermometer you trust once and set the offset in the YAML.
 
 ---
 
@@ -138,21 +136,13 @@ Grafana is on `:3000`. More detail, including viewing it on your phone, is in [`
 
 ## VPD
 
-Leaf VPD assumes the leaves are a bit cooler than the air, which is normal under LEDs. The offset is `leaf_offset_c` in the YAML, default 2 °C.
-
-| Leaf VPD (kPa) | Good for |
-|---|---|
-| under 0.4 | too low |
-| 0.4 – 0.8 | seedlings / clones |
-| 0.8 – 1.2 | veg |
-| 1.2 – 1.6 | flower |
-| over 1.6 | too high |
+Leaf VPD (vapor pressure deficit) is calculated from the AHT10's temperature and humidity. It assumes the leaf surface is slightly cooler than the air; the offset is `leaf_offset_c` in the YAML, default 2 °C.
 
 ---
 
 ## Testing on a breadboard
 
-`firmware/moisture-test.yaml` is what I used before the PCB: an ESP32 DevKit with one probe, an AHT10 and a 0.96" OLED showing moisture, temp, RH and VPD.
+`firmware/moisture-test.yaml` is the pre-PCB test build: an ESP32 DevKit with one probe, an AHT10 and a 0.96" OLED showing moisture, temp, RH and VPD.
 
 | Part | ESP32 pin |
 |---|---|
@@ -160,13 +150,13 @@ Leaf VPD assumes the leaves are a bit cooler than the air, which is normal under
 | OLED SDA / SCL | GPIO21 / GPIO22 |
 | AHT10 SDA / SCL | GPIO25 / GPIO26 |
 
-Stuff I learned the annoying way:
+Lessons from the breadboard build:
 
 - **Keep probes on ADC1 pins (GPIO32–35).** ADC2 stops working when Wi-Fi is on.
 - **Give the AHT10 its own I2C bus.** It can lock up a shared bus and take the OLED down with it.
 - **Check your OLED's pin order.** Some are GND-VCC-SCL-SDA and some are VCC-GND-SCL-SDA.
 - **Cheap probes:** look at the chip. You want **TLC555**, not **NE555**. The NE555 ones don't behave at 3.3 V.
-- **No probes yet?** A 10k pot works: outer legs to 3V3 and GND, middle leg to the probe pin. Turn it and watch the % move.
+- **No probes yet?** A 10k potentiometer works: outer legs to 3V3 and GND, middle leg to the probe pin. Turn it and watch the % move.
 
 The original 4-probe box with touch buttons is still in `firmware/legacy/` and `hardware/legacy/` if anyone wants a single-box version.
 
@@ -174,4 +164,4 @@ The original 4-probe box with touch buttons is still in `firmware/legacy/` and `
 
 ## License
 
-MIT. Do whatever you want with it. If you build one and improve it, I'd like to see it.
+See [`LICENSE`](LICENSE).

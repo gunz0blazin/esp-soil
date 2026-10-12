@@ -15,7 +15,7 @@ scrape_configs:
     static_configs:
       # Breadboard test board (firmware/moisture-test.yaml)
       - targets:
-          - 192.168.1.162:80
+          - 192.168.1.XXX:80
         labels:
           board: moisture-test
 
