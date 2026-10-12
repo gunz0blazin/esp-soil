@@ -21,7 +21,7 @@
 #   TS_AUTHKEY=tskey-...     log in with an auth key instead of opening the printed link
 #
 # Detects where it's running (Raspberry Pi, container, VM) and adjusts: in a container
-# it checks for the TUN device and Docker nesting and prints the Proxmox fix if needed.
+# it checks that the container has the TUN device and can run Docker.
 set -eu
 
 SETUP_TAILSCALE=yes
@@ -54,8 +54,8 @@ else
 fi
 echo "==> Running on: $PLATFORM"
 if [ "$IN_CONTAINER" = yes ]; then
-  echo "    Container mode: Tailscale uses this machine's hostname, and Proxmox fixes are"
-  echo "    printed if the container is missing something (TUN device, Docker nesting)."
+  echo "    Container mode: Tailscale uses this machine's hostname, and the script checks"
+  echo "    that the container has what it needs (TUN device, Docker)."
 fi
 
 # Deploy the branch this copy was cloned from, unless BRANCH says otherwise.
@@ -86,8 +86,7 @@ systemctl enable --now docker
 if ! docker info >/dev/null 2>&1; then
   echo "    Docker isn't running. See why: journalctl -u docker -n 30 --no-pager" >&2
   if [ "$IN_CONTAINER" = yes ]; then
-    echo "    In a Proxmox container, Docker needs nesting: on the host, Container ->" >&2
-    echo "    Options -> Features -> tick 'nesting' (and 'keyctl' if unprivileged)," >&2
+    echo "    Containers need nesting enabled on their host to run Docker. Enable it," >&2
     echo "    restart the container, then run this script again." >&2
   fi
   exit 1
@@ -156,17 +155,13 @@ systemctl start esp-soil-deploy.timer
 
 TS_DONE=no
 if [ "$SETUP_TAILSCALE" = yes ] && [ ! -c /dev/net/tun ]; then
-  # Tailscale needs the TUN device. A Raspberry Pi always has it; a Proxmox LXC
-  # container doesn't until it's passed through.
+  # Tailscale needs the TUN device. A Raspberry Pi always has it; a container
+  # doesn't until its host passes it through.
   echo "==> Tailscale: SKIPPED, /dev/net/tun is missing"
   if [ "$IN_CONTAINER" = yes ]; then
     echo "    Containers don't get the TUN device by default, and a container can't grant it"
-    echo "    to itself. On the PROXMOX HOST shell, run (find the ID with: pct list):"
-    echo
-    echo "      curl -fsSL https://raw.githubusercontent.com/gunz0blazin/esp-soil/$BRANCH/deploy/proxmox-lxc-setup.sh | sh -s -- <container-id>"
-    echo
-    echo "    It adds the TUN device (and Docker nesting if needed) and restarts the container."
-    echo "    Then run this script again here; it skips what's already done."
+    echo "    to itself: pass /dev/net/tun through from the container's host, restart the"
+    echo "    container, then run this script again here; it skips what's already done."
   else
     echo "    Load the TUN module (modprobe tun) and run this script again."
   fi

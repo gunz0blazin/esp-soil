@@ -136,7 +136,7 @@ On the Tailscale **Machines** page:
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Bootstrap says Tailscale was **skipped, /dev/net/tun is missing**, or `tailscaled` won't start in a Proxmox container | LXC containers don't get the TUN device by default (a real Pi always has it) | On the Proxmox host: `curl -fsSL https://raw.githubusercontent.com/gunz0blazin/esp-soil/main/deploy/proxmox-lxc-setup.sh \| sh -s -- <container-id>` ([what it does](proxmox-lxc-setup.sh)), then rerun the bootstrap |
+| Bootstrap says Tailscale was **skipped, /dev/net/tun is missing**, or `tailscaled` won't start in a container | Containers don't get the TUN device by default (a real Pi always has it) | Pass `/dev/net/tun` through from the container's host, restart it, and rerun the bootstrap |
 | `curl` from Home Assistant times out | Userspace networking is still on, or `accept_routes` is off | Check both options in the add-on, then restart it. `ip addr show tailscale0` must show the interface |
 | Times out from everywhere | The route isn't approved, or forwarding isn't on | Machines → the Pi → Subnets; on the Pi, `sysctl net.ipv4.ip_forward` must print `1` |
 | Linux machine can't reach the stakes | Linux doesn't accept routes by default | `sudo tailscale set --accept-routes` |
