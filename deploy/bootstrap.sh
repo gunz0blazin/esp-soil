@@ -44,7 +44,8 @@ echo "==> This Pi will deploy branch: $BRANCH"
 
 echo "==> Packages"
 apt-get update -q
-apt-get install -y -q git rsync ansible-core ca-certificates curl
+# procps (sysctl) and iproute2 (ip) are missing from minimal installs and containers
+apt-get install -y -q git rsync ansible-core ca-certificates curl procps iproute2 python3
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "==> Docker (official repository)"
@@ -115,10 +116,33 @@ echo "==> First deploy (pulls images, can take a few minutes)"
 systemctl start esp-soil-deploy.timer
 
 TS_DONE=no
+if [ "$SETUP_TAILSCALE" = yes ] && [ ! -c /dev/net/tun ]; then
+  # Tailscale needs the TUN device. A Raspberry Pi always has it; a Proxmox LXC
+  # container doesn't until it's passed through.
+  echo "==> Tailscale: SKIPPED, /dev/net/tun is missing"
+  echo "    This looks like a container. On the Proxmox host, add to /etc/pve/lxc/<id>.conf:"
+  echo "        lxc.cgroup2.devices.allow: c 10:200 rwm"
+  echo "        lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file"
+  echo "    restart the container, then run this script again (it skips what's done)."
+  SETUP_TAILSCALE=no
+  TS_DONE=skipped
+fi
 if [ "$SETUP_TAILSCALE" = yes ]; then
   echo "==> Tailscale (subnet router for the site VLAN)"
   if ! command -v tailscale >/dev/null 2>&1; then
     curl -fsSL https://tailscale.com/install.sh | sh
+  fi
+  systemctl enable --now tailscaled
+  ready=no
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if tailscale status --json >/dev/null 2>&1 || tailscale status 2>&1 | grep -qi 'logged out'; then
+      ready=yes; break
+    fi
+    sleep 1
+  done
+  if [ "$ready" = no ]; then
+    echo "    tailscaled isn't running. See why: journalctl -u tailscaled -n 30 --no-pager" >&2
+    exit 1
   fi
 
   # Let the Pi forward traffic between the tailnet and the VLAN.
@@ -151,6 +175,10 @@ fi
 echo
 echo "Done. Grafana: http://$(hostname -I | awk '{print $1}'):3000 (user admin)"
 echo "The Pi now checks GitHub every 5 minutes. Logs: journalctl -u esp-soil-deploy"
+if [ "$TS_DONE" = skipped ]; then
+  echo
+  echo "Tailscale was skipped: /dev/net/tun is missing (see the message above)."
+fi
 if [ "$TS_DONE" = yes ]; then
   echo
   echo "Two clicks left in the Tailscale admin console, Machines page (deploy/TAILSCALE.md):"
