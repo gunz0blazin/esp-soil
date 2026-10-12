@@ -15,18 +15,27 @@
 # Values every stake file must set (substitutions):
 #   plant           stake number, used in every sensor name ("Plant 1 moisture")
 #   node_name       device hostname, e.g. soil-stake-1
-#   stake_ip        the stake's fixed IP (DHCP reservation); ESPHome uses it for OTA
-#                   and online status, because mDNS discovery doesn't cross Tailscale
+#   stake_ip        the stake's static IP. The stake sets it on itself (no DHCP), and
+#                   ESPHome uses it to reach the stake for updates and logs, because
+#                   mDNS discovery doesn't cross VLANs or Tailscale
 #   dry_v / wet_v   calibration, volts at the ESP pin. Dry reads HIGHER than wet.
 #                   dry_v = probe in air / dry mix, wet_v = 30 min after a full watering
 #   wifi_ssid, wifi_password, web_username, web_password, api_key
 #                   from the stake file's own secrets.yaml. Remote packages can't
 #                   use !secret, so secrets come in as substitutions.
 #                   api_key also encrypts firmware updates (see ota: below).
-# Optional:
+# Optional (defaults below are for the site VLAN, 10.42.0.0/24):
+#   gateway         the network's router address        (default 10.42.0.1)
+#   subnet          the network's subnet mask             (default 255.255.255.0)
+#   dns             DNS server                            (default: the gateway)
+#                   A probe on a different network (a test probe at home) sets all
+#                   three in its own file. Keep stake IPs out of the router's DHCP pool.
 #   leaf_offset_c   leaf temperature below air temperature for leaf VPD (default 2.0)
 
 substitutions:
+  gateway: 10.42.0.1
+  subnet: 255.255.255.0
+  dns: 10.42.0.1
   leaf_offset_c: "2.0"
 
 esphome:
@@ -44,6 +53,12 @@ logger:
 wifi:
   ssid: ${wifi_ssid}
   password: ${wifi_password}
+  # Static IP: the stake comes up at stake_ip as soon as it joins, no router setup.
+  manual_ip:
+    static_ip: ${stake_ip}
+    gateway: ${gateway}
+    subnet: ${subnet}
+    dns1: ${dns}
   use_address: ${stake_ip}
 
 # Home Assistant connection, encrypted. reboot_timeout: 0s stops the stake from

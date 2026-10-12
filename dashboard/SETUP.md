@@ -24,7 +24,7 @@ curl -s -u esp:<web_password> http://<stake-ip>/metrics | head       # readings 
 
 You should see lines like `esphome_sensor_value{id="moisture",name="Plant 1 moisture",unit="%"} 53`.
 
-Give every stake a fixed IP (DHCP reservation) that matches `stake_ip` in its firmware file.
+Each stake gives itself the static IP in `stake_ip` (its firmware file); the targets list needs the same addresses.
 
 ## 2. Start the stack
 

@@ -5,7 +5,7 @@
 substitutions:
   plant: "4"
   node_name: soil-stake-4
-  stake_ip: 10.42.0.14      # fixed IP for this stake (DHCP reservation)
+  stake_ip: 10.42.0.14      # static IP: the stake sets this on itself
   dry_v: "1.92"             # calibration placeholder: replace with this probe's dry reading
   wet_v: "0.92"             # calibration placeholder: replace with this probe's wet reading
 

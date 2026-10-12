@@ -123,7 +123,7 @@ It runs off USB, about 0.3 W per stake. A multi-port USB charger with a cable to
 You need [ESPHome](https://esphome.io/) 2026.9 or newer, either the Home Assistant add-on or standalone. The firmware is split in two:
 
 - **`firmware/common.yaml`**: everything the stakes share. You don't flash it directly.
-- **One small file per stake**: its number, fixed IP and calibration, plus your secrets. It pulls in `common.yaml`.
+- **One small file per stake**: its number, static IP and calibration, plus your secrets. It pulls in `common.yaml`.
 
 **With the Home Assistant ESPHome add-on** (how the stakes are meant to be managed):
 
@@ -133,13 +133,13 @@ You need [ESPHome](https://esphome.io/) 2026.9 or newer, either the Home Assista
    substitutions:
      plant: "1"            # stake number, used in the sensor names
      node_name: soil-stake-1
-     stake_ip: 10.42.0.11  # the stake's fixed IP
+     stake_ip: 10.42.0.11  # the stake's static IP (it sets this on itself)
      dry_v: "1.92"         # calibration, see below
      wet_v: "0.92"
    ```
    The stub fetches `common.yaml` from the `main` branch on GitHub every time it builds, so the add-on always flashes the merged firmware.
 3. Flash over USB the first time (**Install → Plug into this computer**; browser flashing needs Chrome or Edge). After that it updates over Wi-Fi.
-4. Give each stake a fixed IP with a DHCP reservation, matching `stake_ip`.
+4. Nothing to set on the router: each stake gives itself its `stake_ip` (static) as soon as it joins the Wi-Fi. The network's gateway and subnet mask are set once in `common.yaml` (defaults `10.42.0.1` / `255.255.255.0`); a stake on a different network, like a test probe at home, overrides them in its own file.
 
 **Standalone, from this repo:** copy `secrets.example.yaml` to `firmware/stakes/secrets.yaml`, edit `firmware/stakes/soil-stake-N.yaml`, and run `esphome run firmware/stakes/soil-stake-1.yaml`.
 
@@ -271,7 +271,7 @@ scrape_configs:
 `dashboard/prometheus/targets/stakes.yml`:
 
 ```yaml
-- targets: ["10.42.0.11:80"]      # the stake's fixed IP and web_server port
+- targets: ["10.42.0.11:80"]      # the stake's static IP and web_server port
   labels: {board: soil-stake-1}   # extra label so you can tell stakes apart
 - targets: ["10.42.0.12:80"]
   labels: {board: soil-stake-2}
@@ -280,7 +280,7 @@ scrape_configs:
 - **`basic_auth`** applies to every stake in the job, so all stakes share one username and password. Stakes still on firmware without a login just ignore it.
 - **One entry per stake** in `targets/stakes.yml`. The `board` label is added to every value from that stake, which makes queries and graphs easier to read.
 - **Adding or removing a stake needs no restart:** Prometheus re-reads the targets file within a minute.
-- **Give every stake a fixed IP** (a DHCP reservation), matching `stake_ip` in its firmware file. Prometheus has no way to find a stake whose address changed.
+- **Each stake's IP here must match `stake_ip` in its firmware file.** The GitHub checks compare the two and fail if they don't.
 - **After editing `prometheus.yml` itself**, apply it with `docker compose restart prometheus`. A restart doesn't lose any data. (The Pi's deploy does this for you, and only when that file changed.)
 
 Prometheus also adds two labels on its own: `job="esphome"` and `instance="<ip>:80"`. It also records a few series per stake about the scrape itself, the most useful being `up`, which is `1` when the last read worked and `0` when it didn't.

@@ -14,7 +14,12 @@
 # Environment (all optional):
 #   BRANCH=testing           branch this Pi deploys; default: the branch this copy was
 #                            cloned from (clone -b testing to test the pipeline itself)
-#   TS_ROUTES=10.42.0.0/24   subnet to share; default: the subnet of the Pi's main interface
+#   PI_STATIC_IP=10.42.0.10/24  give the Pi a static address (NetworkManager). Saved now,
+#                            used from the next boot, so it's safe to set at home before
+#                            taking the Pi to the site. PI_GATEWAY / PI_DNS default to the
+#                            subnet's .1. Also sets the Tailscale subnet if TS_ROUTES isn't set.
+#   TS_ROUTES=10.42.0.0/24   subnet to share; default: PI_STATIC_IP's subnet, else the subnet
+#                            of the Pi's main interface
 #   TS_HOSTNAME=esp-soil-pi  the Pi's name on the tailnet; default: esp-soil-pi, or the
 #                            machine's own hostname in a container (so a test box never
 #                            takes the real Pi's name)
@@ -184,6 +189,36 @@ echo "==> First deploy"
 /usr/local/bin/esp-soil-deploy --force
 systemctl start esp-soil-deploy.timer
 
+# ---- static address for the Pi (optional) ----
+# Saved in NetworkManager but not applied now: if this runs at home, switching to the
+# site's address would cut the connection. It takes effect on the next boot.
+STATIC_PENDING=no
+if [ -n "${PI_STATIC_IP:-}" ]; then
+  echo "==> Static address: $PI_STATIC_IP"
+  case "$PI_STATIC_IP" in */*) ;; *) echo "    PI_STATIC_IP needs a prefix, e.g. 10.42.0.10/24" >&2; exit 1 ;; esac
+  STATIC_NET=$(python3 -c 'import ipaddress, sys; print(ipaddress.ip_interface(sys.argv[1]).network)' "$PI_STATIC_IP")
+  PI_GATEWAY=${PI_GATEWAY:-$(python3 -c 'import ipaddress, sys; print(next(ipaddress.ip_network(sys.argv[1]).hosts()))' "$STATIC_NET")}
+  PI_DNS=${PI_DNS:-$PI_GATEWAY}
+  [ -z "${TS_ROUTES:-}" ] && TS_ROUTES=$STATIC_NET
+  if [ "$IN_CONTAINER" = yes ]; then
+    echo "    skipped: a container's address is set on its host"
+  elif ! command -v nmcli >/dev/null 2>&1; then
+    echo "    skipped: NetworkManager (nmcli) isn't installed; set the address by hand" >&2
+  else
+    iface=$(ip route show default | awk '{print $5; exit}')
+    con=$(nmcli -t -f NAME,DEVICE connection show --active | awk -F: -v d="$iface" '$2 == d {print $1; exit}')
+    if [ -z "$con" ]; then
+      echo "    skipped: no active NetworkManager connection on $iface" >&2
+    else
+      nmcli connection modify "$con" ipv4.method manual ipv4.addresses "$PI_STATIC_IP" \
+        ipv4.gateway "$PI_GATEWAY" ipv4.dns "$PI_DNS"
+      echo "    saved on '$con' ($iface): $PI_STATIC_IP, gateway $PI_GATEWAY, DNS $PI_DNS"
+      echo "    It takes effect on the next boot. Until then the Pi keeps its current address."
+      STATIC_PENDING=yes
+    fi
+  fi
+fi
+
 TS_DONE=no
 if [ "$SETUP_TAILSCALE" = yes ] && [ ! -c /dev/net/tun ]; then
   # Tailscale needs the TUN device. A Raspberry Pi always has it; a container
@@ -312,6 +347,11 @@ echo
 echo " Stakes (web page + /metrics, used by Prometheus)"
 echo "   user: $WEB_USER    password: $WEB_PW"
 echo "================================================================"
+if [ "$STATIC_PENDING" = yes ]; then
+  echo " After the next boot this machine is ${PI_STATIC_IP%/*} (static):"
+  echo "   Grafana http://${PI_STATIC_IP%/*}:3000   Prometheus http://${PI_STATIC_IP%/*}:9090"
+  echo "----------------------------------------------------------------"
+fi
 echo " Passwords are stored in $SECRETS/ (root only)."
 
 if [ "$PROM_STATE" != running ] || [ "$GRAF_STATE" != running ]; then

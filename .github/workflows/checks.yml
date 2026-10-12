@@ -49,6 +49,9 @@ jobs:
             echo "ok  $f"
           done
 
+      - name: Stake addresses agree (firmware vs Prometheus list)
+        run: ci/run.sh "stake addresses" python3 ci/check_stakes.py
+
       - name: Validate the Home Assistant stub against this commit's common.yaml
         run: |
           python ci/stub_to_local.py firmware/ha-stub.example.yaml firmware/stakes/ci-ha-stub.yaml

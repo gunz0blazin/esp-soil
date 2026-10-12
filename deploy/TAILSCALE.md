@@ -151,5 +151,5 @@ On the Tailscale **Machines** page:
 | Linux machine can't reach the stakes | Linux doesn't accept routes by default | `sudo tailscale set --accept-routes` |
 | The Pi answers, the stakes don't | A custom access policy is blocking the subnet | Allow your devices to reach `10.42.0.0/24` in the policy, or go back to the default |
 | ESPHome add-on shows a stake **Offline** but its logs work | The badge uses mDNS, which doesn't cross Tailscale | Harmless: installs and logs use `stake_ip` directly. To fix the badge, turn on ping-based status (see step 5) |
-| Wireless logs or installs fail but `curl` works | `stake_ip` in the add-on's file is wrong | Check `stake_ip` matches the stake's fixed IP in UniFi |
+| Wireless logs or installs fail but `curl` works | `stake_ip` in the add-on's file is wrong | Check `stake_ip` in the add-on's file matches the address the stake was flashed with |
 | The site dropped off after a few months | The Pi's key expired | On site: `sudo tailscale up --force-reauth`, then disable key expiry |

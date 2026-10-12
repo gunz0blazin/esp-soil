@@ -75,21 +75,22 @@ The whole first deployment in order. Each step links to its details below.
 **At home**
 
 1. **Merge `testing` into `main`** with a pull request, using **Create a merge commit**. The site Pi deploys `main`. See [Making a change](#making-a-change).
-2. **Set up the Pi.** Raspberry Pi OS Lite 64-bit, then the bootstrap from a clone of `main`. It isn't on the site network yet, so tell it which subnet the stakes will be on:
+2. **Set up the Pi.** Raspberry Pi OS Lite 64-bit, then the bootstrap from a clone of `main`, with the Pi's static site address. That address is saved for the next boot (the Pi keeps its home address until then) and also tells Tailscale which subnet to share:
    ```bash
    git clone https://github.com/gunz0blazin/esp-soil.git /tmp/esp-soil
-   sudo TS_ROUTES=10.42.0.0/24 /tmp/esp-soil/deploy/bootstrap.sh
+   sudo PI_STATIC_IP=10.42.0.10/24 /tmp/esp-soil/deploy/bootstrap.sh
    ```
+   When it's done, `sudo poweroff`. Don't reboot it at home: it would come up on `10.42.0.10`, which your home network can't reach.
    Open the Tailscale login link it prints. Details: [1. Set up the Pi](#1-set-up-the-pi).
 3. **Tailscale admin console:** approve the Pi's route and **disable its key expiry**. See [TAILSCALE.md, step 2](TAILSCALE.md#2-admin-console).
 4. **Home Assistant:** in the Tailscale add-on, set **userspace networking off** and `accept_routes` on ([TAILSCALE.md, step 3](TAILSCALE.md#3-home-assistant)). In the ESPHome add-on, add the secrets, using the **site VLAN's** Wi-Fi name and password, and create the five stake files from the stub ([3. ESPHome in Home Assistant](#3-esphome-in-home-assistant)).
-5. **Flash every stake by USB.** They can't join Wi-Fi at home, which is expected: they're set up for the site's network. Label them 1–5. You can note each one's `dry_v` (probe in air) now. See [First flash](#first-flash-usb-before-the-stakes-go-to-the-site).
+5. **Flash every stake by USB.** Each one has its `stake_ip` baked in, so label them 1–5 to match. They can't join Wi-Fi at home, which is expected: they're set up for the site's network. You can note each one's `dry_v` (probe in air) now. See [First flash](#first-flash-usb-before-the-stakes-go-to-the-site).
 
 **On site**
 
-6. **Router:** create the stakes' VLAN with its own 2.4 GHz WPA2 SSID. No port forwards or allow rules needed. See [Pick the stakes' subnet](#pick-the-stakes-subnet).
-7. **Plug in the Pi** on the VLAN, give it its fixed IP (`.10`) in the router, and power-cycle it. Check Grafana opens over Tailscale from your phone (`http://esp-soil-pi:3000`).
-8. **Bring the stakes up one at a time:** power it, set its fixed IP (`.11`–`.15`) when it appears in the router's client list, power-cycle it, then watch it go **UP** at `http://esp-soil-pi:9090/targets` and appear in Grafana.
+6. **Router:** create the stakes' VLAN (`10.42.0.0/24`, gateway `10.42.0.1`) with its own 2.4 GHz WPA2 SSID. No port forwards, allow rules or reservations needed. See [Pick the stakes' subnet](#pick-the-stakes-subnet).
+7. **Plug in the Pi** on the VLAN. It boots on its static `10.42.0.10`. Check Grafana opens over Tailscale from your phone (`http://esp-soil-pi:3000`).
+8. **Bring the stakes up one at a time:** power it, and within a minute it's on its static address. Watch it go **UP** at `http://esp-soil-pi:9090/targets` and appear in Grafana.
 
 **After that (from anywhere)**
 
@@ -138,7 +139,8 @@ Options:
 
 | To | Run |
 |---|---|
-| Skip it | `sudo deploy/bootstrap.sh --no-tailscale` |
+| Give the Pi its static site address | `sudo PI_STATIC_IP=10.42.0.10/24 deploy/bootstrap.sh` (saved now, used from the next boot; gateway and DNS default to `.1`, or set `PI_GATEWAY` / `PI_DNS`) |
+| Skip Tailscale | `sudo deploy/bootstrap.sh --no-tailscale` |
 | Share a different subnet | `sudo TS_ROUTES=10.50.0.0/24 deploy/bootstrap.sh` |
 | Use another tailnet name | `sudo TS_HOSTNAME=soil-site-pi deploy/bootstrap.sh` (default `esp-soil-pi`; in a container, the container's hostname) |
 | Deploy a branch other than the one you cloned | `sudo BRANCH=testing deploy/bootstrap.sh` |
@@ -270,13 +272,16 @@ The Pi and the stakes get **their own VLAN at the site, with addresses decided i
 | Raspberry Pi | `10.42.0.10` |
 | Stakes 1–5 | `10.42.0.11`–`10.42.0.15` |
 
-Give each device its address with a **DHCP reservation** on the VLAN (by MAC address). That keeps the addresses in one place: the stake firmware doesn't need to know the gateway or DNS, and you can move the VLAN later without reflashing. A stake's MAC address is in the add-on's logs on its first boot, or in the router's client list.
+**Every device gives itself its address (static); nothing is set on the router.** The VLAN exists only for the Pi and the stakes, so there's nothing else to clash with, and a stake comes up at its planned address the moment it joins the Wi-Fi.
 
-Then keep these three in step whenever a stake's address changes:
+- **Stakes:** `stake_ip` in each stake's firmware file. The VLAN's gateway and subnet mask are set once in `firmware/common.yaml` (`10.42.0.1`, `255.255.255.0`); change them there if your VLAN differs. Getting them right matters: a stake flashed with the wrong gateway or mask joins the Wi-Fi but can't be reached, and needs USB to fix.
+- **Pi:** the bootstrap option `PI_STATIC_IP=10.42.0.10/24` (see [Run the bootstrap](#run-the-bootstrap)). It's saved during setup and used from the next boot, so it's safe to set at home.
+- **Router:** create the VLAN with gateway `10.42.0.1`. DHCP can stay on or off; if it's on, keep its pool away from `.10`–`.15` (e.g. `.100`–`.200`), which also leaves room to plug in a laptop for troubleshooting.
 
-- `stake_ip` in its firmware file (`firmware/stakes/` and the add-on)
+Each stake's address is written in two places in the repo, and the GitHub checks fail if they disagree:
+
+- `stake_ip` in its firmware file (`firmware/stakes/`, and the same value in its file in the add-on)
 - `dashboard/prometheus/targets/stakes.yml`
-- its DHCP reservation
 
 **Wi-Fi:** give the VLAN its own SSID on 2.4 GHz (the ESP32-C3 has no 5 GHz) with WPA2-PSK. Use that SSID and password for `wifi_ssid` / `wifi_password` in the add-on's secrets. WPA3-only can be unreliable with ESP32 boards, so allow WPA2.
 
@@ -366,7 +371,7 @@ If the canary doesn't come back, stop there. ESPHome's safe mode usually lets yo
 
 ### Adding a stake
 
-1. Pick its number and IP, and add a DHCP reservation for it.
+1. Pick its number and a free IP on the VLAN.
 2. Add `firmware/stakes/soil-stake-N.yaml` (copy another stake's file) and an entry in `dashboard/prometheus/targets/stakes.yml`. Merge.
 3. Create its file in the add-on from the stub, flash it by USB, and add it to Home Assistant by IP.
 4. Prometheus picks it up after the merge deploys, and the dashboard shows it automatically.
@@ -393,7 +398,7 @@ Stakes show **DOWN (401)** in Prometheus between steps 1 and 2, so do both in on
 | "deploy FAILED at: Validate Prometheus config" | The new `prometheus.yml` or targets file is invalid. The running stack is unchanged | Fix it on `testing`; the checks would have caught it if they're required on `main` |
 | "deploy FAILED at: Stop if a secret is missing" | A file in `/etc/esp-soil/` is missing | Recreate it, then `sudo esp-soil-deploy --force` |
 | Failed deploy, then nothing happens | The timer only deploys new commits | Fix and merge, or run `sudo esp-soil-deploy --force` |
-| Notification says stakes are down | Stake off, out of Wi-Fi range, or its IP changed | Check DHCP reservations; open `http://<stake-ip>/` from the Pi |
+| Notification says stakes are down | Stake off, out of Wi-Fi range, or flashed with a different `stake_ip` or gateway | Check the stake's file in the add-on; open `http://<stake-ip>/` from the Pi |
 | Stakes **DOWN (401)** | Password on the stakes and on the Pi don't match | [Changing the stakes' web password](#changing-the-stakes-web-password) |
 | Add-on shows the stake **Offline**, but Prometheus has it UP | Usually just the badge: it uses mDNS, which doesn't cross Tailscale. If wireless logs also fail, Home Assistant can't reach the route | See [TAILSCALE.md, step 5](TAILSCALE.md#5-check-it-works) and its troubleshooting |
 | Add-on install fails with an encryption error | Stake firmware older than ESPHome 2026.9, or a different `api_key` | Update the add-on; check `api_key` matches what the stake was flashed with. Otherwise flash by USB |
