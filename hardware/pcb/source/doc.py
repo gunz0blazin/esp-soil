@@ -172,7 +172,7 @@ notes(40,y-10,[
 "3. Solder the AHT10 header and module.",
 "4. Solder the XIAO last. Square pad = D0 (top left), USB-C toward the top edge.",
 "5. Wire the probe: A = signal (blue), + = 3V3 (red), - = GND (black). Keep leads short.",
-"6. Flash soil-stake.yaml over USB (change plant / node_name per stake), then mount in the case.",
+"6. Flash the stake firmware over USB (firmware/stakes/ or the Home Assistant stub; set plant / node_name / stake_ip per stake), then mount in the case.",
 "#Calibration (per stake)",
 "Watch 'Plant N raw' in Grafana/HA/logs. This is the voltage at the ESP pin, after the divider.",
 "dry_v = probe in air or bone-dry mix.  wet_v = 30 min after watering to runoff. Put both in the YAML and reflash.",

@@ -1,9 +1,13 @@
 # esp-soil
 
-> **This is the `testing` branch.** It holds changes that are written but not yet running on the stakes or the dashboard server. `main` matches what's deployed right now. To see exactly what's new here, compare the branches: [`main...testing`](../../compare/main...testing). Once a change is flashed and checked on real hardware, it gets merged into `main` with a pull request.
+> **This is the `testing` branch.** It holds changes that are written but not yet running on the stakes or the dashboard server. `main` matches what's deployed right now. To see exactly what's new here, compare the branches: [`main...testing`](https://github.com/gunz0blazin/esp-soil/compare/main...testing). Once a change is flashed and checked on real hardware, it gets merged into `main` with a pull request.
 >
 > **In testing now**
-> - **Board login:** the stake web page and `/metrics` require a username and password (`web_username` / `web_password` in `secrets.yaml`, HTTP basic auth). Prometheus logs in using a password file. How it works, setup and checks: [Board login](#board-login-testing) below and [`dashboard/SETUP.md`](dashboard/SETUP.md#board-login-web-page--metrics).
+> - **Deployment pipeline:** merging to `main` deploys the dashboard to the site's Raspberry Pi automatically (`ansible-pull` on a timer, with phone notifications). Firmware is flashed from the ESPHome add-on in Home Assistant, which pulls the shared firmware from `main`. The stakes are reached from home over Tailscale. Every push and pull request is checked on GitHub first. See [Deployment](#deployment) and [`deploy/README.md`](deploy/README.md).
+> - **Shared firmware:** `firmware/common.yaml` is used by every stake; each stake has a small file with its number, IP and calibration (`firmware/stakes/`, plus a template for the Home Assistant add-on).
+> - **Encryption:** the Home Assistant connection and every firmware update are encrypted with one key (`api_key`). Stakes no longer reboot when Home Assistant isn't connected.
+> - **Board login:** the stake web page and `/metrics` require a username and password. Prometheus logs in using a password file. See [Board login](#board-login-testing).
+> - **Dashboard stack:** stakes are listed in `dashboard/prometheus/targets/` (adding one needs no restart), image versions are pinned, the Grafana password comes from `.env`, and the dashboard is now called **Soil Monitor**.
 
 Wi-Fi soil moisture stakes. Each stake is a small board with an ESP32-C3, a capacitive soil probe and an AHT10 temperature/humidity sensor in a 3D printed case. Push it into the soil like a plant marker and plug in a USB cable. It reports soil moisture, temperature, humidity and VPD over Wi-Fi to ESPHome / Home Assistant and Prometheus, and the included Grafana stack graphs it.
 
@@ -11,7 +15,7 @@ Wi-Fi soil moisture stakes. Each stake is a small board with an ESP32-C3, a capa
 
 ![stake board in the case, KiCad 3D models](docs/images/kicad-3d.png)
 
-**Contents:** [What's in here](#whats-in-here) · [The stake](#the-stake) · [Setup](#setup) · [Calibrating](#calibrating) · [Data logging: Prometheus + Grafana](#data-logging-prometheus--grafana) ([Prometheus](#prometheus) · [Grafana](#grafana) · [Board login](#board-login-testing) · [Troubleshooting](#troubleshooting)) · [VPD](#vpd) · [Breadboard testing](#testing-on-a-breadboard)
+**Contents:** [What's in here](#whats-in-here) · [The stake](#the-stake) · [Setup](#setup) · [Calibrating](#calibrating) · [Data logging: Prometheus + Grafana](#data-logging-prometheus--grafana) ([Prometheus](#prometheus) · [Grafana](#grafana) · [Board login](#board-login-testing) · [Troubleshooting](#troubleshooting)) · [Deployment](#deployment) · [VPD](#vpd) · [Breadboard testing](#testing-on-a-breadboard)
 
 ---
 
@@ -19,7 +23,9 @@ Wi-Fi soil moisture stakes. Each stake is a small board with an ESP32-C3, a capa
 
 ```
 firmware/
-  soil-stake.yaml          the stake firmware (one per stake)
+  common.yaml              the stake firmware, shared by every stake
+  stakes/                  one small file per stake: number, IP, calibration
+  ha-stub.example.yaml     template for a stake in the Home Assistant ESPHome add-on
   moisture-test.yaml       breadboard test board: probe + AHT10 + OLED
   moisture-test-probe-only.yaml   same board, probe + OLED only
   legacy/                  the original 4-probe OLED + touch button build
@@ -29,6 +35,8 @@ hardware/
   case/                    snap-fit case (3MF), OpenSCAD file, print notes
   legacy/                  case for the old 4-probe box
 dashboard/                 Prometheus + Grafana in Docker, with the dashboard (see Data logging below)
+deploy/                    automatic deploy to the site's Raspberry Pi (ansible-pull), setup guide
+ci/, .github/workflows/    checks that run on GitHub for every push and pull request
 secrets.example.yaml
 ```
 
@@ -85,21 +93,32 @@ It runs off USB, about 0.3 W per stake. A multi-port USB charger with a cable to
 
 ## Setup
 
-You need [ESPHome](https://esphome.io/), either standalone or the Home Assistant add-on.
+You need [ESPHome](https://esphome.io/) 2026.9 or newer, either the Home Assistant add-on or standalone. The firmware is split in two:
 
-1. Copy `secrets.example.yaml` to `secrets.yaml` and fill in your Wi-Fi and the board login (`web_username` / `web_password`). It's in `.gitignore`.
-2. Open `firmware/soil-stake.yaml` and change the top for each stake:
+- **`firmware/common.yaml`**: everything the stakes share. You don't flash it directly.
+- **One small file per stake**: its number, fixed IP and calibration, plus your secrets. It pulls in `common.yaml`.
+
+**With the Home Assistant ESPHome add-on** (how the stakes are meant to be managed):
+
+1. Add your secrets to the add-on's **Secrets** (values in [`secrets.example.yaml`](secrets.example.yaml)): Wi-Fi, `web_username` / `web_password`, and `api_key`.
+2. Create one device per stake and paste [`firmware/ha-stub.example.yaml`](firmware/ha-stub.example.yaml) into it. Change the values at the top:
    ```yaml
    substitutions:
      plant: "1"            # stake number, used in the sensor names
      node_name: soil-stake-1
+     stake_ip: 10.42.0.11  # the stake's fixed IP
+     dry_v: "1.92"         # calibration, see below
+     wet_v: "0.92"
    ```
-3. Flash over USB the first time. After that it updates over Wi-Fi.
-   ```bash
-   esphome run firmware/soil-stake.yaml
-   ```
-   Browser flashing (ESPHome Web) needs Chrome or Edge. Firefox doesn't do Web Serial.
-4. Give each stake a fixed IP in your router.
+   The stub fetches `common.yaml` from the `main` branch on GitHub every time it builds, so the add-on always flashes the merged firmware.
+3. Flash over USB the first time (**Install → Plug into this computer**; browser flashing needs Chrome or Edge). After that it updates over Wi-Fi.
+4. Give each stake a fixed IP with a DHCP reservation, matching `stake_ip`.
+
+**Standalone, from this repo:** copy `secrets.example.yaml` to `firmware/stakes/secrets.yaml`, edit `firmware/stakes/soil-stake-N.yaml`, and run `esphome run firmware/stakes/soil-stake-1.yaml`.
+
+**Keep `api_key` safe** (a password manager). It encrypts both the Home Assistant connection and every firmware update, and a stake flashed with it can only be updated over Wi-Fi with the same key.
+
+The full site setup (Pi, Tailscale, Home Assistant) is in [`deploy/README.md`](deploy/README.md).
 
 ---
 
@@ -112,7 +131,7 @@ The probe voltage goes **down** as the soil gets wetter. On the stake you're rea
 1. Watch the stake's **raw** sensor (`Plant N raw`) in Grafana, the stake's web page, or the logs.
 2. **Dry:** probe in the air or bone-dry mix. That's `dry_v`.
 3. **Wet:** in the soil, watered until it drains, 30 minutes later. That's `wet_v`.
-4. Put both in the substitutions and reflash.
+4. Put both in the stake's file (`dry_v` / `wet_v`) and reflash.
 
 0% means "as dry as the dry reference" and 100% means "right after a full watering." It's not actual water content, just a consistent scale.
 
@@ -141,8 +160,9 @@ Prometheus *pulls* from the stakes. A stake never sends data anywhere on its own
 
 | File | What it does |
 |---|---|
-| `docker-compose.yml` | Runs Prometheus (port 9090) and Grafana (port 3000), with a named volume for each so data survives restarts and image updates |
-| `prometheus/prometheus.yml` | Scrape settings, the board login, and the list of stakes to read |
+| `docker-compose.yml` | Runs Prometheus (port 9090) and Grafana (port 3000) at pinned versions, with a named volume for each so data survives restarts and image updates |
+| `prometheus/prometheus.yml` | Scrape settings and the board login |
+| `prometheus/targets/stakes.yml` | The list of stakes to read. Prometheus re-reads it on its own |
 | `prometheus/esp_web_password` | The board password Prometheus logs in with. You create it on the server; it's gitignored. `esp_web_password.example` shows the format |
 | `grafana/provisioning/datasources/prometheus.yml` | Connects Grafana to Prometheus automatically (no clicking through the UI) |
 | `grafana/provisioning/dashboards/dashboards.yml` | Tells Grafana to load every dashboard JSON in `grafana/dashboards/` |
@@ -151,12 +171,14 @@ Prometheus *pulls* from the stakes. A stake never sends data anywhere on its own
 
 ### Quick start
 
+On the site's Raspberry Pi this is all automatic: see [Deployment](#deployment). To run the stack by hand on any Linux machine with Docker:
+
 ```bash
 cd dashboard
-nano docker-compose.yml          # set GF_SECURITY_ADMIN_PASSWORD (default is "changeme")
-nano prometheus/prometheus.yml   # one target per stake, see below
-printf '%s' 'your-long-password' > prometheus/esp_web_password   # same as web_password on the stakes
+nano prometheus/targets/stakes.yml                                # one entry per stake, see below
+printf '%s' 'your-long-password' > prometheus/esp_web_password    # same as web_password on the stakes
 chmod 644 prometheus/esp_web_password
+echo 'GRAFANA_ADMIN_PASSWORD=pick-one' > .env                     # used the first time Grafana starts
 docker compose up -d
 ```
 
@@ -193,7 +215,7 @@ Every sensor becomes one `esphome_sensor_value` line. The `name` label is the se
 | `Plant N leaf VPD` | kPa | every 15 s |
 | `Plant N WiFi` | dBm | every 60 s |
 
-`N` is the `plant` substitution set per stake in `firmware/soil-stake.yaml`. Prometheus scrapes every 15 s and records whatever the latest value is at that moment.
+`N` is the `plant` value in each stake's file. Prometheus scrapes every 15 s and records whatever the latest value is at that moment.
 
 ---
 
@@ -213,17 +235,26 @@ scrape_configs:
     basic_auth:                 # the board login, sent on every scrape
       username: esp             # must match web_username on the stakes
       password_file: /etc/prometheus/esp_web_password
-    static_configs:
-      - targets:
-          - 192.168.1.XXX:80    # the stake's IP and web_server port
-        labels:
-          board: soil-stake-1   # extra label so you can tell stakes apart
+    file_sd_configs:            # the list of stakes, in its own file
+      - files:
+          - /etc/prometheus/targets/*.yml
+        refresh_interval: 1m
+```
+
+`dashboard/prometheus/targets/stakes.yml`:
+
+```yaml
+- targets: ["10.42.0.11:80"]      # the stake's fixed IP and web_server port
+  labels: {board: soil-stake-1}   # extra label so you can tell stakes apart
+- targets: ["10.42.0.12:80"]
+  labels: {board: soil-stake-2}
 ```
 
 - **`basic_auth`** applies to every stake in the job, so all stakes share one username and password. Stakes still on firmware without a login just ignore it.
-- **One `targets` block per stake.** The `board` label is added to every value from that stake, which makes queries and graphs easier to read.
-- **Give every stake a fixed IP** (a DHCP reservation in your router). Prometheus has no way to find a stake whose address changed.
-- **After editing the file**, apply it with `docker compose restart prometheus`. A restart doesn't lose any data.
+- **One entry per stake** in `targets/stakes.yml`. The `board` label is added to every value from that stake, which makes queries and graphs easier to read.
+- **Adding or removing a stake needs no restart:** Prometheus re-reads the targets file within a minute.
+- **Give every stake a fixed IP** (a DHCP reservation), matching `stake_ip` in its firmware file. Prometheus has no way to find a stake whose address changed.
+- **After editing `prometheus.yml` itself**, apply it with `docker compose restart prometheus`. A restart doesn't lose any data. (The Pi's deploy does this for you, and only when that file changed.)
 
 Prometheus also adds two labels on its own: `job="esphome"` and `instance="<ip>:80"`. It also records a few series per stake about the scrape itself, the most useful being `up`, which is `1` when the last read worked and `0` when it didn't.
 
@@ -328,8 +359,8 @@ So as soon as Prometheus is reading a new stake, its moisture, temperature, humi
 ### Viewing on a phone or remotely
 
 - **On your home network:** open `http://<server-ip>:3000` and use "Add to Home Screen". Panels stack into one column on a narrow screen.
-- **Away from home:** use a VPN to your network (for example Tailscale or WireGuard) rather than opening ports 3000 or 9090 to the internet.
-- **Inside Home Assistant:** add a **Webpage** card or dashboard pointing at `http://<server-ip>:3000/d/<dashboard-uid>?kiosk`. The UID is the `uid` field in the dashboard JSON. `?kiosk` hides Grafana's menus.
+- **Away from the site:** over Tailscale, at `http://<pi-tailscale-name>:3000` (set up in [`deploy/README.md`](deploy/README.md#2-tailscale-reach-the-site-from-home)). Don't open ports 3000 or 9090 to the internet.
+- **Inside Home Assistant:** add a **Webpage** card or dashboard pointing at `http://<server-ip>:3000/d/soil-monitor?kiosk`. `?kiosk` hides Grafana's menus.
 
 More detail is in [`dashboard/SETUP.md`](dashboard/SETUP.md).
 
@@ -344,12 +375,12 @@ web_password: "your-long-password"
 ```
 
 ```yaml
-# firmware/soil-stake.yaml
+# firmware/common.yaml (the values come from each stake file's secrets)
 web_server:
   port: 80
   auth:
-    username: !secret web_username
-    password: !secret web_password
+    username: ${web_username}
+    password: ${web_password}
     type: basic
 ```
 
@@ -363,7 +394,7 @@ web_server:
 **Rolling it out** (order matters)
 
 1. Add `web_username` / `web_password` to ESPHome's `secrets.yaml`.
-2. On the server, create `prometheus/esp_web_password` with the same password, `chmod 644` it, and run `docker compose up -d --force-recreate prometheus`. Create the file *before* the container starts: if it's missing, Docker creates a folder with that name and every scrape fails.
+2. On the server, put the same password in `prometheus/esp_web_password`. On the Pi that's `/etc/esp-soil/esp_web_password`, and the deploy copies it in. By hand: `chmod 644` it and run `docker compose up -d --force-recreate prometheus`. Create the file *before* the container starts: if it's missing, Docker creates a folder with that name and every scrape fails.
 3. OTA the stakes one at a time. Boards without a login ignore the credentials, so nothing breaks while some stakes are updated and some aren't.
 4. Check `http://<server-ip>:9090/targets`: every stake should be **UP**.
 
@@ -380,18 +411,18 @@ curl -s -u esp:your-long-password http://<stake-ip>/metrics | head     # reading
 
 - **The stakes have a login,** but it's HTTP basic auth over plain HTTP. The password is only base64-encoded, so anyone who can capture traffic on your network could read it. It stops casual access to the web page and readings; keep the stakes on a network you trust (a separate VLAN for IoT devices is a good idea).
 - **Use a password that isn't used anywhere else,** since it's stored in plain text in `secrets.yaml` and `esp_web_password`.
-- **Change the Grafana admin password** in `docker-compose.yml` before the first start. It's `changeme` by default.
+- **The Grafana admin password** comes from `GRAFANA_ADMIN_PASSWORD` in `dashboard/.env` (on the Pi, from `/etc/esp-soil/grafana_admin_password`). It's only applied the first time Grafana starts; after that, change it in Grafana.
 - **Prometheus (9090) has no login.** Keep it on your local network.
 
 ### Maintenance
 
 | Task | How |
 |---|---|
-| Add a stake | Flash it with the same `web_username` / `web_password`, add a `targets` block to `prometheus/prometheus.yml`, then `docker compose restart prometheus` |
+| Add a stake | Flash it with the same secrets, and add an entry to `prometheus/targets/stakes.yml`. No restart needed. Full steps: [`deploy/README.md`](deploy/README.md#adding-a-stake) |
 | Change the board password | See [Board login](#board-login-testing) |
 | Remove a stake | Delete its block and restart Prometheus. Its old history stays until it ages out |
-| Update Prometheus and Grafana | `docker compose pull && docker compose up -d`. Both images use the `latest` tag; pin a version in `docker-compose.yml` if you'd rather update on your own schedule |
-| Back up the history | Stop Prometheus (`docker compose stop prometheus`), copy the `prometheus-data` volume (on most installs it's named `dashboard_prometheus-data`), then start it again |
+| Update Prometheus and Grafana | Change the pinned version in `docker-compose.yml` on `testing`. The checks confirm the new tag exists with an ARM64 build; after the merge, the Pi pulls it |
+| Back up the history | Stop Prometheus (`docker compose stop prometheus`), copy the `prometheus-data` volume (named `esp-soil_prometheus-data` on the Pi, `dashboard_prometheus-data` if you started it by hand from `dashboard/`), then start it again |
 | Reset Grafana settings | Remove the `grafana-data` volume. The data source and dashboard come back from the provisioning files on the next start |
 
 Don't run `docker compose down -v` unless you mean it: `-v` deletes both volumes, including all history.
@@ -409,6 +440,37 @@ Don't run `docker compose down -v` unless you mean it: `-v` deletes both volumes
 | Whole dashboard says "No data" | Grafana can't reach Prometheus | Both containers must be in the same Compose stack; check **Connections → Data sources → Prometheus → Test** |
 | History is gone after a restart | A volume was removed | Use `restart` or `down`/`up`, not `down -v` |
 | Graph times look shifted | Grafana uses the browser's time zone | Change it in the dashboard settings or your Grafana profile |
+
+---
+
+## Deployment
+
+The stakes and a Raspberry Pi live at a site that can be off your home network. The Pi runs Prometheus and Grafana; Home Assistant at home manages the stakes' firmware over Tailscale.
+
+![How a change gets from GitHub to the site](docs/images/deploy-flow.png)
+
+| What changed on `main` | What happens |
+|---|---|
+| `dashboard/` (Prometheus, Grafana, the list of stakes) | **Automatic.** The Pi checks GitHub every 5 minutes. On a new commit it validates the config, deploys it, restarts only what changed, checks everything is healthy, and sends a phone notification with how many stakes it can reach. A bad config is rejected before anything live changes |
+| `firmware/` | **You choose when.** Each stake's file in the ESPHome add-on pulls `firmware/common.yaml` from `main`. Flash one stake, check it, then the rest |
+| `deploy/` | The Pi updates its own deploy command and timer |
+
+**How work flows**
+
+1. Make changes on `testing` and push. GitHub runs the checks (below) on every push.
+2. Open a pull request into `main`. Merge when the checks are green.
+3. The Pi deploys dashboard changes on its own; firmware gets flashed from the add-on.
+4. Fast-forward `testing` to `main`, so `testing` only ever shows new, unmerged work.
+
+**Checks on every push and pull request** (`.github/workflows/checks.yml`, on GitHub's runners with throwaway secrets, so it's safe on a public repo):
+
+- every stake file and the Home Assistant stub validate with the pinned ESPHome version, and the firmware compiles
+- `promtool` accepts the Prometheus config; the compose file and the list of stakes are valid; the pinned images exist with ARM64 builds for the Pi
+- the deploy playbook runs end to end on the runner, a second run changes nothing, Grafana loads the dashboard and Prometheus finds every stake
+
+**Why the Pi pulls instead of GitHub pushing:** nothing on the internet can make the Pi run code. It only ever pulls `main`, and only you can merge to `main`. No ports are opened at the site.
+
+**Setting it up** (Pi bootstrap, secrets, notifications, Tailscale subnet router, the ESPHome add-on, day-to-day steps, rollbacks and troubleshooting): [`deploy/README.md`](deploy/README.md).
 
 ---
 
