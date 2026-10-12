@@ -134,13 +134,29 @@ The Pi joins your tailnet and acts as a **subnet router** for the stakes' networ
 
 ### Pick the stakes' subnet
 
-The stakes' network must not overlap your home network, or routing breaks. The examples in this repo use **`10.42.0.0/24`** with stakes at `10.42.0.11`–`.15`. Use whatever the stakes are actually on, and keep these in step:
+The Pi and the stakes get **their own VLAN at the site, with addresses decided in advance**. Pick a subnet that doesn't overlap your home network (or routing over Tailscale breaks) and isn't a common default like `192.168.1.0/24`. The examples in this repo use **`10.42.0.0/24`**:
 
-- `stake_ip` in each stake's file (`firmware/stakes/` and the add-on)
+| Device | Address |
+|---|---|
+| Gateway (the VLAN's router interface) | `10.42.0.1` |
+| Raspberry Pi | `10.42.0.10` |
+| Stakes 1–5 | `10.42.0.11`–`10.42.0.15` |
+
+Give each device its address with a **DHCP reservation** on the VLAN (by MAC address). That keeps the addresses in one place: the stake firmware doesn't need to know the gateway or DNS, and you can move the VLAN later without reflashing. A stake's MAC address is in the add-on's logs on its first boot, or in the router's client list.
+
+Then keep these three in step whenever a stake's address changes:
+
+- `stake_ip` in its firmware file (`firmware/stakes/` and the add-on)
 - `dashboard/prometheus/targets/stakes.yml`
-- the DHCP reservations that give each stake its fixed IP
+- its DHCP reservation
 
-If the site's network is something common like `192.168.1.0/24` and so is yours at home, the stakes need their own network. One way is a separate Wi-Fi network (VLAN) for them at the site. Another is to have the Pi run a Wi-Fi network just for the stakes on an unusual subnet, with Ethernet as its uplink.
+**Wi-Fi:** give the VLAN its own SSID on 2.4 GHz (the ESP32-C3 has no 5 GHz) with WPA2-PSK. Use that SSID and password for `wifi_ssid` / `wifi_password` in the add-on's secrets. WPA3-only can be unreliable with ESP32 boards, so allow WPA2.
+
+**Firewall rules for the VLAN** (recommended):
+
+- The **Pi** needs outbound internet: GitHub (to pull `main`), Docker Hub (images), Tailscale, and ntfy if you use it. Nothing needs to reach it from the internet.
+- The **stakes** need nothing outside the VLAN. Block their internet access and any route to other VLANs. Everything that talks to them (Prometheus on the Pi, Home Assistant over Tailscale) comes through the Pi.
+- Allow the Pi to reach the stakes on TCP 80 (web page and `/metrics`), TCP 6053 (the ESPHome API), TCP 3232 (firmware updates on ESP32) and ping (the add-on uses it to show a stake as online). Home Assistant's traffic arrives through the Pi's Tailscale route, so to the VLAN it looks like it comes from the Pi; this one rule covers both.
 
 ### On the Pi
 

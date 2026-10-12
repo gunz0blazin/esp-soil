@@ -348,9 +348,18 @@ esphome_sensor_value{name=~"(?i).*moisture.*"}
 
 So as soon as Prometheus is reading a new stake, its moisture, temperature, humidity, VPD and raw voltage appear on the dashboard with no Grafana changes. This also means a sensor needs one of those words in its name to be picked up.
 
+Every tile and graph line is labelled by stake (**Plant 1**, **Plant 2**, …), taken from the sensor name. Each query wraps the match in `label_replace` to build that label:
+
+```promql
+label_replace(label_replace(esphome_sensor_value{name=~"(?i).*moisture.*"},
+  "stake", "$1", "name", "(.*)"),                 # default: the full sensor name
+  "stake", "Plant $1", "name", "Plant ([0-9]+) .*")  # stake firmware: "Plant N"
+```
+
+The panels use `{{stake}}` as their legend. A sensor whose name doesn't start with `Plant N` still shows up, under its full name.
+
 #### Known limitations
 
-- **Temperature, Humidity and Leaf VPD tiles** use fixed legend text (`Temp`, `RH`, `Leaf VPD`), so with several stakes every tile has the same label. The order matches the stake order, but it's easy to mix up. The moisture and voltage panels show the full sensor name.
 - **Leaf VPD tile vs VPD graph:** the tile matches `leaf…vpd`, the graph matches any sensor with `vpd` in its name. With the stake firmware they show the same sensors.
 - Short gaps (a stake rebooting, a missed scrape) are bridged on the graphs if they're under 5 minutes. Longer gaps show as breaks.
 

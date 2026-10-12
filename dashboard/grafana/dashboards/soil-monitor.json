@@ -57,8 +57,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "esphome_sensor_value{name=~\"(?i).*moisture.*\"}",
-          "legendFormat": "{{name}}",
+          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*moisture.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
+          "legendFormat": "{{stake}}",
           "refId": "A",
           "range": true,
           "instant": false
@@ -130,8 +130,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "esphome_sensor_value{name=~\"(?i).*temperature.*\"} * 9 / 5 + 32",
-          "legendFormat": "Temp",
+          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*temperature.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\") * 9 / 5 + 32",
+          "legendFormat": "{{stake}}",
           "refId": "A",
           "range": true,
           "instant": false
@@ -203,8 +203,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "esphome_sensor_value{name=~\"(?i).*humidity.*\"}",
-          "legendFormat": "RH",
+          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*humidity.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
+          "legendFormat": "{{stake}}",
           "refId": "A",
           "range": true,
           "instant": false
@@ -272,8 +272,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "esphome_sensor_value{name=~\"(?i).*leaf.*vpd.*\"}",
-          "legendFormat": "Leaf VPD",
+          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*leaf.*vpd.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
+          "legendFormat": "{{stake}}",
           "refId": "A",
           "range": true,
           "instant": false
@@ -349,8 +349,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "esphome_sensor_value{name=~\"(?i).*raw.*\"}",
-          "legendFormat": "{{name}}",
+          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*raw.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
+          "legendFormat": "{{stake}}",
           "refId": "A",
           "range": true,
           "instant": false
@@ -423,8 +423,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "esphome_sensor_value{name=~\"(?i).*moisture.*\"}",
-          "legendFormat": "{{name}}",
+          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*moisture.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
+          "legendFormat": "{{stake}}",
           "refId": "A",
           "range": true,
           "instant": false
@@ -498,8 +498,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "esphome_sensor_value{name=~\"(?i).*raw.*\"}",
-          "legendFormat": "{{name}}",
+          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*raw.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
+          "legendFormat": "{{stake}}",
           "refId": "A",
           "range": true,
           "instant": false
@@ -571,8 +571,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "esphome_sensor_value{name=~\"(?i).*temperature.*\"} * 9 / 5 + 32",
-          "legendFormat": "Temp °F",
+          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*temperature.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\") * 9 / 5 + 32",
+          "legendFormat": "{{stake}}",
           "refId": "A",
           "range": true,
           "instant": false
@@ -648,8 +648,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "esphome_sensor_value{name=~\"(?i).*humidity.*\"}",
-          "legendFormat": "RH",
+          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*humidity.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
+          "legendFormat": "{{stake}}",
           "refId": "A",
           "range": true,
           "instant": false
@@ -710,8 +710,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "esphome_sensor_value{name=~\"(?i).*vpd.*\"}",
-          "legendFormat": "{{name}}",
+          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*vpd.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
+          "legendFormat": "{{stake}}",
           "refId": "A",
           "range": true,
           "instant": false
@@ -783,5 +783,6 @@
   },
   "annotations": {
     "list": []
-  }
+  },
+  "description": "Soil moisture, temperature, humidity and VPD for every ESP-Soil stake. Each sensor is labelled by its stake (Plant N)."
 }
