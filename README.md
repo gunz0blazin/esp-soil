@@ -35,7 +35,7 @@ hardware/
   case/                    snap-fit case (3MF), OpenSCAD file, print notes
   legacy/                  case for the old 4-probe box
 dashboard/                 Prometheus + Grafana in Docker, with the dashboard (see Data logging below)
-deploy/                    automatic deploy to the site's Raspberry Pi (ansible-pull), setup guide
+deploy/                    automatic deploy to the site's Raspberry Pi (ansible-pull), setup and Tailscale guides
 ci/, .github/workflows/    checks that run on GitHub for every push and pull request
 secrets.example.yaml
 ```
@@ -479,7 +479,7 @@ The stakes and a Raspberry Pi live at a site that can be off your home network. 
 
 **Why the Pi pulls instead of GitHub pushing:** nothing on the internet can make the Pi run code. It only ever pulls `main`, and only you can merge to `main`. No ports are opened at the site.
 
-**Setting it up** (Pi bootstrap, secrets, notifications, Tailscale subnet router, the ESPHome add-on, day-to-day steps, rollbacks and troubleshooting): [`deploy/README.md`](deploy/README.md).
+**Setting it up** (Pi bootstrap, secrets, notifications, the ESPHome add-on, day-to-day steps, rollbacks and troubleshooting): [`deploy/README.md`](deploy/README.md). Remote access to the site: [`deploy/TAILSCALE.md`](deploy/TAILSCALE.md).
 
 ---
 

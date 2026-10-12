@@ -2,7 +2,7 @@
 
 How changes get from this repo to a running site: a Raspberry Pi that runs Prometheus and Grafana, plus the soil stakes. The Pi can be on a network you don't control; everything it does is an outbound connection.
 
-**Contents:** [How a change gets deployed](#how-a-change-gets-deployed) · [1. Set up the Pi](#1-set-up-the-pi) · [2. Tailscale](#2-tailscale-reach-the-site-from-home) · [3. ESPHome in Home Assistant](#3-esphome-in-home-assistant) · [4. Day to day](#4-day-to-day) · [Troubleshooting](#troubleshooting)
+**Contents:** [How a change gets deployed](#how-a-change-gets-deployed) · [1. Set up the Pi](#1-set-up-the-pi) · [2. Tailscale](#2-tailscale-reach-the-site-from-home) ([full guide](TAILSCALE.md)) · [3. ESPHome in Home Assistant](#3-esphome-in-home-assistant) · [4. Day to day](#4-day-to-day) · [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -158,45 +158,14 @@ Then keep these three in step whenever a stake's address changes:
 - The **stakes** need nothing outside the VLAN. Block their internet access and any route to other VLANs. Everything that talks to them (Prometheus on the Pi, Home Assistant over Tailscale) comes through the Pi.
 - Allow the Pi to reach the stakes on TCP 80 (web page and `/metrics`), TCP 6053 (the ESPHome API), TCP 3232 (firmware updates on ESP32) and ping (the add-on uses it to show a stake as online). Home Assistant's traffic arrives through the Pi's Tailscale route, so to the VLAN it looks like it comes from the Pi; this one rule covers both.
 
-### On the Pi
+### Setting it up
 
-```bash
-curl -fsSL https://tailscale.com/install.sh | sh
+The full step-by-step guide is in **[`TAILSCALE.md`](TAILSCALE.md)**: the access policy (do it first), the Pi as a tagged subnet router, the Home Assistant add-on settings, your phone and laptop, checks and troubleshooting. In short:
 
-# allow the Pi to forward traffic between the tailnet and the stakes
-echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-tailscale.conf
-sudo sysctl -p /etc/sysctl.d/99-tailscale.conf
-
-sudo tailscale up --advertise-routes=10.42.0.0/24
-```
-
-Then in the Tailscale admin console:
-
-1. Open the Pi's machine page and **approve** the `10.42.0.0/24` route.
-2. **Disable key expiry** for the Pi, so it doesn't drop off the tailnet in a few months while nobody's at the site.
-
-### In Home Assistant
-
-1. Install the **Tailscale** add-on and log it in to the same tailnet.
-2. In the add-on's configuration, turn on **`accept_routes`** so it uses routes advertised by other devices. Without it, Home Assistant can't see the stakes' subnet.
-3. Check: from the Home Assistant terminal, `curl -s -o /dev/null -w '%{http_code}\n' http://10.42.0.11/` should print `401` (the stake's login).
-
-### Lock it down (recommended)
-
-Only the devices that need the stakes should reach them. In the tailnet policy file (Access controls in the admin console), allow your own login and Home Assistant to reach the stakes' subnet and the Pi, and nothing else. Tag the Home Assistant and Pi machines in the admin console, then something like this (replace the email with your Tailscale login):
-
-```json
-{
-  "tagOwners": {
-    "tag:homeassistant": ["autogroup:admin"],
-    "tag:esp-soil-pi":   ["autogroup:admin"]
-  },
-  "acls": [
-    { "action": "accept", "src": ["tag:homeassistant", "you@example.com"], "dst": ["10.42.0.0/24:*"] },
-    { "action": "accept", "src": ["you@example.com"], "dst": ["tag:esp-soil-pi:22,3000,9090"] }
-  ]
-}
-```
+1. **Policy first:** tags for the Pi and Home Assistant, auto-approval for the Pi's route, and rules so Home Assistant can only reach the stakes' ports.
+2. **Pi:** install Tailscale, turn on IP forwarding, `sudo tailscale up --advertise-tags=tag:esp-soil-pi --advertise-routes=10.42.0.0/24`. Tagged devices don't expire.
+3. **Home Assistant:** Tailscale add-on with **`userspace_networking` off** (required, or nothing in Home Assistant can reach the stakes), `accept_routes` on, tagged, and its own route and exit-node advertising off.
+4. **Check:** from the Home Assistant terminal, `curl -s -o /dev/null -w '%{http_code}\n' http://10.42.0.11/` prints `401`.
 
 ---
 
@@ -296,6 +265,6 @@ Stakes show **DOWN (401)** in Prometheus between steps 1 and 2, so do both in on
 | Failed deploy, then nothing happens | The timer only deploys new commits | Fix and merge, or run `sudo esp-soil-deploy --force` |
 | Notification says stakes are down | Stake off, out of Wi-Fi range, or its IP changed | Check DHCP reservations; open `http://<stake-ip>/` from the Pi |
 | Stakes **DOWN (401)** | Password on the stakes and on the Pi don't match | [Changing the stakes' web password](#changing-the-stakes-web-password) |
-| Add-on shows the stake offline, but Prometheus has it UP | Home Assistant isn't accepting the Pi's route, or `stake_ip` is wrong | Turn on `accept_routes` in the Tailscale add-on; check `stake_ip` |
+| Add-on shows the stake **Offline**, but Prometheus has it UP | Usually just the badge: it uses mDNS, which doesn't cross Tailscale. If wireless logs also fail, Home Assistant can't reach the route | See [TAILSCALE.md, step 5](TAILSCALE.md#5-check-it-works) and its troubleshooting |
 | Add-on install fails with an encryption error | Stake firmware older than ESPHome 2026.9, or a different `api_key` | Update the add-on; check `api_key` matches what the stake was flashed with. Otherwise flash by USB |
 | Add-on build says ESPHome is too old | `min_version` in `common.yaml` | Update the ESPHome add-on |
