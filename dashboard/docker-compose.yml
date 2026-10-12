@@ -23,7 +23,8 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/esp_web_password:/etc/prometheus/esp_web_password:ro   # stake login
-      - ./prometheus/targets:/etc/prometheus/targets:ro                       # list of stakes
+      # List of stakes: the repo's, unless TARGETS_DIR in .env points at a box-local one
+      - ${TARGETS_DIR:-./prometheus/targets}:/etc/prometheus/targets:ro
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"

@@ -169,6 +169,21 @@ jobs:
           echo "targets: $found of $expected"
           [ "$found" = "$expected" ]
 
+      # A test box can watch its own probe: a list in /etc/esp-soil/targets/
+      # replaces the repo's list on that box, and edits apply without a redeploy.
+      - name: A box-local list of stakes replaces the repo's
+        run: |
+          boards() { curl -fsS http://127.0.0.1:9090/api/v1/targets | python3 -c "import json,sys; print(','.join(sorted(t['labels'].get('board','') for t in json.load(sys.stdin)['data']['activeTargets'])))"; }
+          wait_for() { for i in $(seq 1 45); do b=$(boards); [ "$b" = "$1" ] && { echo "stakes: $b"; return 0; }; sleep 3; done; echo "expected '$1', got '$b'"; return 1; }
+          sudo install -d -m 0755 /etc/esp-soil/targets
+          printf -- '- targets: ["127.0.0.1:9999"]\n  labels: {board: test-probe}\n' | sudo tee /etc/esp-soil/targets/test-probe.yml > /dev/null
+          sudo chmod 0644 /etc/esp-soil/targets/test-probe.yml
+          ci/run.sh "deploy with a box-local list" sudo env "PATH=$PATH" ANSIBLE_LOCALHOST_WARNING=false ANSIBLE_NOCOLOR=1 ansible-playbook -i localhost, deploy/site.yml -e manage_host=false
+          wait_for test-probe
+          # edit the local list: picked up live, no deploy
+          printf -- '- targets: ["127.0.0.1:9998"]\n  labels: {board: test-probe-2}\n' | sudo tee -a /etc/esp-soil/targets/test-probe.yml > /dev/null
+          wait_for test-probe,test-probe-2
+
       - name: Logs on failure
         if: failure()
         run: docker compose -p esp-soil -f /opt/esp-soil/dashboard/docker-compose.yml logs --tail 80 || true

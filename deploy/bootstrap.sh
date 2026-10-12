@@ -134,6 +134,39 @@ else
   fi
 fi
 
+# ---- which stakes this box watches ----
+# A test box (cloned from a branch other than main) can watch its own probe instead
+# of the site stakes: a list in /etc/esp-soil/targets/ replaces the repo's list on
+# this box only. Production (main) uses the repo's list.
+LOCAL_TARGETS="$SECRETS/targets"
+has_local_targets() { ls "$LOCAL_TARGETS"/*.yml >/dev/null 2>&1; }
+if [ "$BRANCH" != main ]; then
+  echo "==> Stakes for this test box"
+  if has_local_targets; then
+    echo "    already using this box's own list: $(cd "$LOCAL_TARGETS" && ls -- *.yml | tr '\n' ' ')"
+  else
+    if [ -z "${TEST_PROBE_IP:-}" ]; then
+      printf "    Test probe IP (Enter to skip and watch the repo's site stakes instead): "
+      read -r TEST_PROBE_IP
+    fi
+    if [ -n "$TEST_PROBE_IP" ]; then
+      case "$TEST_PROBE_IP" in *:*) target="$TEST_PROBE_IP" ;; *) target="$TEST_PROBE_IP:80" ;; esac
+      install -d -m 0755 "$LOCAL_TARGETS"
+      {
+        echo "# This box's own list of stakes. It replaces the repo's list on this box only."
+        echo "# Add more entries the same way; Prometheus picks up changes within a minute."
+        echo "- targets: [\"$target\"]"
+        echo "  labels: {board: test-probe}"
+      } > "$LOCAL_TARGETS/test-probe.yml"
+      chmod 0644 "$LOCAL_TARGETS/test-probe.yml"
+      echo "    wrote $LOCAL_TARGETS/test-probe.yml ($target)"
+    fi
+  fi
+elif has_local_targets; then
+  echo "==> NOTE: this box deploys main but has its own list of stakes in $LOCAL_TARGETS,"
+  echo "    so it ignores the repo's list. Remove those files on a production Pi."
+fi
+
 echo "==> Deploy command and timer"
 install -m 0755 "$HERE/esp-soil-deploy" /usr/local/bin/esp-soil-deploy
 install -m 0644 "$HERE/systemd/esp-soil-deploy.service" /etc/systemd/system/
@@ -259,6 +292,11 @@ echo
 echo "================================================================"
 echo " ESP-Soil on $(hostname)  ($PLATFORM)"
 echo " Deploys branch '$BRANCH' every 5 minutes  (journalctl -u esp-soil-deploy)"
+if has_local_targets; then
+  echo " Stakes: this box's own list ($LOCAL_TARGETS)"
+else
+  echo " Stakes: the repo's list (dashboard/prometheus/targets)"
+fi
 echo "----------------------------------------------------------------"
 echo " Grafana     [$GRAF_STATE]"
 echo "   http://$LAN_IP:3000"

@@ -180,6 +180,7 @@ Everything secret lives in `/etc/esp-soil/` and never goes in git:
 | `ntfy_url` | Deploy notifications (full topic URL) | No |
 | `ntfy_token` | Access token, if your ntfy topic is protected | No |
 | `deploy.env` | Which repo and branch to deploy (`BRANCH=`, the branch you cloned) | Created by bootstrap |
+| `targets/*.yml` | This box's own list of stakes, replacing the repo's (test boxes only; see [Testing the pipeline on a spare Pi](#testing-the-pipeline-on-a-spare-pi)) | No |
 
 To change one, edit the file (`sudo nano /etc/esp-soil/esp_web_password`, no trailing newline needed) and run `sudo esp-soil-deploy --force`.
 
@@ -240,6 +241,18 @@ sudo /tmp/esp-soil/deploy/bootstrap.sh
 It prints `This Pi will deploy branch: testing`, and from then on that Pi deploys every push to `testing` within 5 minutes. That's a full rehearsal of the site setup before anything reaches `main`. Keep the site Pi on `main` (clone `main`, or the default branch).
 
 To move a Pi to another branch later, either rerun the bootstrap from a clone of that branch, set it explicitly with `sudo BRANCH=main /tmp/esp-soil/deploy/bootstrap.sh`, or edit `BRANCH=` in `/etc/esp-soil/deploy.env` and run `sudo esp-soil-deploy --force`.
+
+**A test probe at home.** Because it's cloned from `testing`, the bootstrap asks for a **test probe IP**. Enter your home probe's address and the test box watches **only** that probe; the site stakes in the repo's list are ignored on this box, so nothing shows as down. Press Enter to skip and watch the repo's list instead.
+
+- The answer is saved as `/etc/esp-soil/targets/test-probe.yml`, on the box only, never in git, so merges can't carry it to production:
+  ```yaml
+  - targets: ["192.168.1.50:80"]
+    labels: {board: test-probe}
+  ```
+- Edit that file to change the IP or add more probes (same format). Prometheus picks it up within a minute, no deploy needed.
+- If you add the folder later on a box that didn't have one, run `sudo esp-soil-deploy --force` once so Prometheus switches to it.
+- A box deploying `main` uses the repo's list. If it finds a local list there, the bootstrap warns you.
+- For firmware: give the test probe's file in the ESPHome add-on `ref: testing`, so it runs the firmware from `testing` while the site stakes stay on `main`.
 
 ---
 

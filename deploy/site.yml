@@ -77,12 +77,34 @@
               {{ lookup('ansible.builtin.file', repo_dir ~ '/dashboard/docker-compose.yml')
                  | regex_search('prom/prometheus:\S+') }}
 
+        # A box can have its own list of stakes in /etc/esp-soil/targets/ (a test box
+        # with a probe at home, set up by the bootstrap). If it has any, Prometheus
+        # reads that folder instead of the repo's list. Production leaves it empty.
+        - name: Look for a box-local list of stakes
+          ansible.builtin.find:
+            paths: "{{ secrets_dir }}/targets"
+            patterns: "*.yml"
+          register: local_targets
+
+        - name: Choose the list of stakes
+          ansible.builtin.set_fact:
+            targets_dir: >-
+              {{ (secrets_dir ~ '/targets') if local_targets.matched > 0
+                 else (deploy_dir ~ '/prometheus/targets') }}
+            targets_source: >-
+              {{ ('this box (' ~ secrets_dir ~ '/targets)') if local_targets.matched > 0
+                 else 'the repo (dashboard/prometheus/targets)' }}
+
+        - name: Report which list of stakes is used
+          ansible.builtin.debug:
+            msg: "Stakes come from {{ targets_source }}"
+
         # ---- validate the new config before anything live changes ----
         - name: Validate Prometheus config (promtool)
           ansible.builtin.command: >-
             docker run --rm --entrypoint promtool
             -v {{ repo_dir }}/dashboard/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-            -v {{ repo_dir }}/dashboard/prometheus/targets:/etc/prometheus/targets:ro
+            -v {{ (secrets_dir ~ '/targets') if local_targets.matched > 0 else (repo_dir ~ '/dashboard/prometheus/targets') }}:/etc/prometheus/targets:ro
             -v {{ secrets_dir }}/esp_web_password:/etc/prometheus/esp_web_password:ro
             {{ prometheus_image }} check config /etc/prometheus/prometheus.yml
           changed_when: false
@@ -118,7 +140,9 @@
 
         - name: Write compose .env
           ansible.builtin.copy:
-            content: "GRAFANA_ADMIN_PASSWORD={{ (secret_values.results[1].content | b64decode).rstrip('\r\n') }}\n"
+            content: |
+              GRAFANA_ADMIN_PASSWORD={{ (secret_values.results[1].content | b64decode).rstrip('\r\n') }}
+              TARGETS_DIR={{ targets_dir }}
             dest: "{{ deploy_dir }}/.env"
             mode: "0600"
           no_log: true
