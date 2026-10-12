@@ -125,21 +125,21 @@
 
         - name: Start or update the stack
           ansible.builtin.command: >-
-            docker compose -p {{ compose_project }} -f {{ deploy_dir }}/docker-compose.yml
-            up -d --remove-orphans --quiet-pull
+            docker compose --progress plain -p {{ compose_project }} -f {{ deploy_dir }}/docker-compose.yml
+            up -d --remove-orphans
           register: up
           changed_when: up.stderr is search('Created|Recreated|Started|Pulled')
 
         # Bind-mounted config files don't restart a container on their own.
         # Targets are re-read automatically, so they're not in this list.
         - name: Restart Prometheus if its config or password changed
-          ansible.builtin.command: docker compose -p {{ compose_project }} -f {{ deploy_dir }}/docker-compose.yml restart prometheus
+          ansible.builtin.command: docker compose --progress plain -p {{ compose_project }} -f {{ deploy_dir }}/docker-compose.yml restart prometheus
           when: >-
             web_pw is changed or
             (sync.stdout_lines | select('search', ' prometheus/prometheus\.yml$') | list | length > 0)
 
         - name: Restart Grafana if provisioning changed
-          ansible.builtin.command: docker compose -p {{ compose_project }} -f {{ deploy_dir }}/docker-compose.yml restart grafana
+          ansible.builtin.command: docker compose --progress plain -p {{ compose_project }} -f {{ deploy_dir }}/docker-compose.yml restart grafana
           when: sync.stdout_lines | select('search', ' grafana/provisioning/') | list | length > 0
 
         # ---- health ----

@@ -80,7 +80,7 @@ Options:
 |---|---|
 | Skip it | `sudo deploy/bootstrap.sh --no-tailscale` |
 | Share a different subnet | `sudo TS_ROUTES=10.50.0.0/24 deploy/bootstrap.sh` |
-| Use another tailnet name | `sudo TS_HOSTNAME=soil-site-pi deploy/bootstrap.sh` |
+| Use another tailnet name | `sudo TS_HOSTNAME=soil-site-pi deploy/bootstrap.sh` (default `esp-soil-pi`; in a container, the container's hostname) |
 | Deploy a branch other than the one you cloned | `sudo BRANCH=testing deploy/bootstrap.sh` |
 | Log in without a browser | `sudo TS_AUTHKEY=tskey-... deploy/bootstrap.sh` (an auth key from the admin console) |
 
@@ -128,12 +128,22 @@ To change one, edit the file (`sudo nano /etc/esp-soil/esp_web_password`, no tra
 ### Useful commands on the Pi
 
 ```bash
+sudo esp-soil-deploy --force                  # deploy now, showing every step's output
+sudo esp-soil-deploy --force -vv              # even more detail; --quiet for task names only
 systemctl list-timers esp-soil-deploy.timer   # when it last ran / runs next
 journalctl -u esp-soil-deploy -n 100          # output of recent deploys
-sudo esp-soil-deploy --force                  # deploy now, even with no new commits
 cd /opt/esp-soil/dashboard && sudo docker compose -p esp-soil ps     # container status
 cd /opt/esp-soil/dashboard && sudo docker compose -p esp-soil logs -f prometheus
 ```
+
+### Running on a container or VM
+
+The bootstrap detects where it's running and says so (`Running on: Raspberry Pi …`, `container (lxc)`, `virtual machine (kvm)`). In a **container** it adjusts:
+
+- The tailnet name defaults to the container's own hostname, so a test box never takes the real Pi's `esp-soil-pi` name.
+- If `/dev/net/tun` is missing, it skips Tailscale and prints the two lines to add to the container's config on the Proxmox host.
+- If Docker can't start, it points at Proxmox's **nesting** (and **keyctl**) features.
+- If the container can't turn on IP forwarding, it warns instead of failing.
 
 ### Testing the pipeline on a spare Pi
 

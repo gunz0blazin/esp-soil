@@ -15,8 +15,13 @@
 #   BRANCH=testing           branch this Pi deploys; default: the branch this copy was
 #                            cloned from (clone -b testing to test the pipeline itself)
 #   TS_ROUTES=10.42.0.0/24   subnet to share; default: the subnet of the Pi's main interface
-#   TS_HOSTNAME=esp-soil-pi  the Pi's name on the tailnet; default: esp-soil-pi
+#   TS_HOSTNAME=esp-soil-pi  the Pi's name on the tailnet; default: esp-soil-pi, or the
+#                            machine's own hostname in a container (so a test box never
+#                            takes the real Pi's name)
 #   TS_AUTHKEY=tskey-...     log in with an auth key instead of opening the printed link
+#
+# Detects where it's running (Raspberry Pi, container, VM) and adjusts: in a container
+# it checks for the TUN device and Docker nesting and prints the Proxmox fix if needed.
 set -eu
 
 SETUP_TAILSCALE=yes
@@ -34,6 +39,25 @@ fi
 HERE=$(cd "$(dirname "$0")" && pwd)
 SECRETS=/etc/esp-soil
 
+# ---- where are we running? ----
+IN_CONTAINER=no
+VIRT=$(systemd-detect-virt 2>/dev/null || true)          # none, lxc, kvm, ...
+if grep -qa 'Raspberry Pi' /proc/device-tree/model 2>/dev/null; then
+  PLATFORM="Raspberry Pi ($(tr -d '\0' < /proc/device-tree/model))"
+elif systemd-detect-virt --container >/dev/null 2>&1; then
+  IN_CONTAINER=yes
+  PLATFORM="container ($VIRT)"
+elif [ -n "$VIRT" ] && [ "$VIRT" != none ]; then
+  PLATFORM="virtual machine ($VIRT)"
+else
+  PLATFORM="physical machine"
+fi
+echo "==> Running on: $PLATFORM"
+if [ "$IN_CONTAINER" = yes ]; then
+  echo "    Container mode: Tailscale uses this machine's hostname, and Proxmox fixes are"
+  echo "    printed if the container is missing something (TUN device, Docker nesting)."
+fi
+
 # Deploy the branch this copy was cloned from, unless BRANCH says otherwise.
 # safe.directory: the clone belongs to your user, but this runs as root.
 if [ -z "${BRANCH:-}" ]; then
@@ -43,9 +67,9 @@ fi
 echo "==> This Pi will deploy branch: $BRANCH"
 
 echo "==> Packages"
-apt-get update -q
+apt-get update
 # procps (sysctl) and iproute2 (ip) are missing from minimal installs and containers
-apt-get install -y -q git rsync ansible-core ca-certificates curl procps iproute2 python3
+apt-get install -y git rsync ansible-core ca-certificates curl procps iproute2 python3
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "==> Docker (official repository)"
@@ -55,10 +79,19 @@ if ! command -v docker >/dev/null 2>&1; then
   . /etc/os-release
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian ${VERSION_CODENAME} stable" \
     > /etc/apt/sources.list.d/docker.list
-  apt-get update -q
-  apt-get install -y -q docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  apt-get update
+  apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 fi
 systemctl enable --now docker
+if ! docker info >/dev/null 2>&1; then
+  echo "    Docker isn't running. See why: journalctl -u docker -n 30 --no-pager" >&2
+  if [ "$IN_CONTAINER" = yes ]; then
+    echo "    In a Proxmox container, Docker needs nesting: on the host, Container ->" >&2
+    echo "    Options -> Features -> tick 'nesting' (and 'keyctl' if unprivileged)," >&2
+    echo "    restart the container, then run this script again." >&2
+  fi
+  exit 1
+fi
 
 echo "==> Secrets in $SECRETS"
 install -d -m 0700 "$SECRETS"
@@ -111,7 +144,13 @@ install -m 0644 "$HERE/systemd/esp-soil-deploy.timer" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable esp-soil-deploy.timer
 
-echo "==> First deploy (pulls images, can take a few minutes)"
+# Pull the images here, outside Ansible, so Docker's progress streams live.
+# (Ansible only prints a task's output once the task has finished.)
+echo "==> Pulling Prometheus and Grafana images"
+GRAFANA_ADMIN_PASSWORD=pull-only docker compose --progress plain \
+  -f "$HERE/../dashboard/docker-compose.yml" pull
+
+echo "==> First deploy"
 /usr/local/bin/esp-soil-deploy --force
 systemctl start esp-soil-deploy.timer
 
@@ -120,10 +159,15 @@ if [ "$SETUP_TAILSCALE" = yes ] && [ ! -c /dev/net/tun ]; then
   # Tailscale needs the TUN device. A Raspberry Pi always has it; a Proxmox LXC
   # container doesn't until it's passed through.
   echo "==> Tailscale: SKIPPED, /dev/net/tun is missing"
-  echo "    This looks like a container. On the Proxmox host, add to /etc/pve/lxc/<id>.conf:"
-  echo "        lxc.cgroup2.devices.allow: c 10:200 rwm"
-  echo "        lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file"
-  echo "    restart the container, then run this script again (it skips what's done)."
+  if [ "$IN_CONTAINER" = yes ]; then
+    echo "    Containers don't get the TUN device by default. On the Proxmox host, add to"
+    echo "    /etc/pve/lxc/<id>.conf:"
+    echo "        lxc.cgroup2.devices.allow: c 10:200 rwm"
+    echo "        lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file"
+    echo "    restart the container, then run this script again (it skips what's done)."
+  else
+    echo "    Load the TUN module (modprobe tun) and run this script again."
+  fi
   SETUP_TAILSCALE=no
   TS_DONE=skipped
 fi
@@ -147,16 +191,30 @@ if [ "$SETUP_TAILSCALE" = yes ]; then
 
   # Let the Pi forward traffic between the tailnet and the VLAN.
   printf 'net.ipv4.ip_forward = 1\nnet.ipv6.conf.all.forwarding = 1\n' > /etc/sysctl.d/99-tailscale.conf
-  sysctl -q -p /etc/sysctl.d/99-tailscale.conf
+  if [ "$IN_CONTAINER" = yes ]; then
+    # Some container setups don't allow changing these; only IPv4 forwarding matters here.
+    sysctl -p /etc/sysctl.d/99-tailscale.conf || true
+    if [ "$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null)" != 1 ]; then
+      echo "    WARNING: IPv4 forwarding is off and the container can't turn it on, so other" >&2
+      echo "    tailnet devices won't reach the subnet through it. Enable it on the host." >&2
+    fi
+  else
+    sysctl -p /etc/sysctl.d/99-tailscale.conf
+  fi
 
   # The subnet to share: the one the Pi's main interface is on, unless TS_ROUTES says otherwise.
   if [ -z "${TS_ROUTES:-}" ]; then
     iface=$(ip route show default | awk '{print $5; exit}')
     cidr=$(ip -4 -o addr show dev "$iface" scope global | awk '{print $4; exit}')
     TS_ROUTES=$(python3 -c 'import ipaddress, sys; print(ipaddress.ip_interface(sys.argv[1]).network)' "$cidr")
-    echo "    Pi is $cidr on $iface, sharing $TS_ROUTES (set TS_ROUTES to change)"
+    echo "    This machine is $cidr on $iface, sharing $TS_ROUTES (set TS_ROUTES to change)"
   fi
-  TS_HOSTNAME=${TS_HOSTNAME:-esp-soil-pi}
+  if [ "$IN_CONTAINER" = yes ]; then
+    TS_HOSTNAME=${TS_HOSTNAME:-$(hostname)}     # a test box shouldn't take the real Pi's name
+  else
+    TS_HOSTNAME=${TS_HOSTNAME:-esp-soil-pi}
+  fi
+  echo "    Tailnet name: $TS_HOSTNAME"
 
   state=$(tailscale status --json 2>/dev/null \
     | python3 -c 'import json, sys; print(json.load(sys.stdin).get("BackendState", ""))' 2>/dev/null || true)
