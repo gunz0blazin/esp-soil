@@ -5,6 +5,8 @@ Each stake's IP lives in two places in the repo:
   - dashboard/prometheus/targets/*.yml  where Prometheus scrapes it
 This fails if they disagree, if two stakes share an IP, or if an IP isn't inside
 the network given by the firmware's gateway/subnet.
+It also checks the Pi's planned address in deploy/site.env: on the stakes'
+network, same gateway, and not any stake's address.
 """
 import glob
 import ipaddress
@@ -61,9 +63,35 @@ for board in targets:
     if board not in stakes:
         errors.append(f"{board} is in the Prometheus list but has no firmware/stakes/ file")
 
+# ---- the Pi's planned address (deploy/site.env) ----
+site = {}
+for line in open("deploy/site.env"):
+    line = line.strip()
+    if line and not line.startswith("#") and "=" in line:
+        k, v = line.split("=", 1)
+        site[k] = v
+pi_ip = None
+try:
+    pi = ipaddress.ip_interface(site["PI_STATIC_IP"])
+    pi_ip = str(pi.ip)
+    stake_net = ipaddress.ip_network(f"{defaults['gateway']}/{defaults['subnet']}", strict=False)
+    if pi.network != stake_net:
+        errors.append(f"deploy/site.env: PI_STATIC_IP {pi} isn't the stakes' network {stake_net}")
+    if site.get("PI_GATEWAY") != str(defaults["gateway"]):
+        errors.append(f"deploy/site.env: PI_GATEWAY {site.get('PI_GATEWAY')} differs from the stakes' gateway {defaults['gateway']}")
+    if pi_ip == str(defaults["gateway"]):
+        errors.append(f"deploy/site.env: PI_STATIC_IP {pi_ip} is the gateway's address")
+    for name, ip in stakes.items():
+        if ip == pi_ip:
+            errors.append(f"deploy/site.env: PI_STATIC_IP {pi_ip} is also {name}'s stake_ip")
+except (KeyError, ValueError) as e:
+    errors.append(f"deploy/site.env: bad or missing PI_STATIC_IP ({e})")
+
+if pi_ip:
+    print(f"  {'Pi':<14} {pi_ip}")
 for name, ip in stakes.items():
     print(f"  {name:<14} {ip}")
 if errors:
     print("\n".join("ERROR: " + e for e in errors))
     sys.exit(1)
-print(f"{len(stakes)} stakes: firmware and the Prometheus list agree")
+print(f"{len(stakes)} stakes: firmware and the Prometheus list agree; the Pi's address fits")

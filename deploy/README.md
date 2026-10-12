@@ -75,10 +75,10 @@ The whole first deployment in order. Each step links to its details below.
 **At home**
 
 1. **Merge `testing` into `main`** with a pull request, using **Create a merge commit**. The site Pi deploys `main`. See [Making a change](#making-a-change).
-2. **Set up the Pi.** Raspberry Pi OS Lite 64-bit, then the bootstrap from a clone of `main`, with the Pi's static site address. That address is saved for the next boot (the Pi keeps its home address until then) and also tells Tailscale which subnet to share:
+2. **Set up the Pi.** Raspberry Pi OS Lite 64-bit, then the bootstrap from a clone of `main`. On `main` it gives the Pi its static site address from `deploy/site.env` (`10.42.0.10`), saved for the next boot (the Pi keeps its home address until then), and tells Tailscale which subnet to share:
    ```bash
    git clone https://github.com/gunz0blazin/esp-soil.git /tmp/esp-soil
-   sudo PI_STATIC_IP=10.42.0.10/24 /tmp/esp-soil/deploy/bootstrap.sh
+   sudo /tmp/esp-soil/deploy/bootstrap.sh
    ```
    When it's done, `sudo poweroff`. Don't reboot it at home: it would come up on `10.42.0.10`, which your home network can't reach.
    Open the Tailscale login link it prints. Details: [1. Set up the Pi](#1-set-up-the-pi).
@@ -139,7 +139,7 @@ Options:
 
 | To | Run |
 |---|---|
-| Give the Pi its static site address | `sudo PI_STATIC_IP=10.42.0.10/24 deploy/bootstrap.sh` (saved now, used from the next boot; gateway and DNS default to `.1`, or set `PI_GATEWAY` / `PI_DNS`) |
+| Use a different site address than `deploy/site.env` | `sudo PI_STATIC_IP=10.42.0.20/24 deploy/bootstrap.sh` (main only; or `PI_STATIC_IP=none` to skip it. Better: change `site.env` in the repo so the checks cover it) |
 | Skip Tailscale | `sudo deploy/bootstrap.sh --no-tailscale` |
 | Share a different subnet | `sudo TS_ROUTES=10.50.0.0/24 deploy/bootstrap.sh` |
 | Use another tailnet name | `sudo TS_HOSTNAME=soil-site-pi deploy/bootstrap.sh` (default `esp-soil-pi`; in a container, the container's hostname) |
@@ -275,7 +275,7 @@ The Pi and the stakes get **their own VLAN at the site, with addresses decided i
 **Every device gives itself its address (static); nothing is set on the router.** The VLAN exists only for the Pi and the stakes, so there's nothing else to clash with, and a stake comes up at its planned address the moment it joins the Wi-Fi.
 
 - **Stakes:** `stake_ip` in each stake's firmware file. The VLAN's gateway and subnet mask are set once in `firmware/common.yaml` (`10.42.0.1`, `255.255.255.0`); change them there if your VLAN differs. Getting them right matters: a stake flashed with the wrong gateway or mask joins the Wi-Fi but can't be reached, and needs USB to fix.
-- **Pi:** the bootstrap option `PI_STATIC_IP=10.42.0.10/24` (see [Run the bootstrap](#run-the-bootstrap)). It's saved during setup and used from the next boot, so it's safe to set at home.
+- **Pi:** `deploy/site.env` (`PI_STATIC_IP=10.42.0.10/24`, gateway and DNS `10.42.0.1`). The bootstrap applies it automatically when run from `main`: saved during setup and used from the next boot, so it's safe to run at home. On `testing` (a test box) the bootstrap never touches the address. The GitHub checks fail if the Pi's address isn't on the stakes' network or matches a stake.
 - **Router:** create the VLAN with gateway `10.42.0.1`. DHCP can stay on or off; if it's on, keep its pool away from `.10`–`.15` (e.g. `.100`–`.200`), which also leaves room to plug in a laptop for troubleshooting.
 
 Each stake's address is written in two places in the repo, and the GitHub checks fail if they disagree:

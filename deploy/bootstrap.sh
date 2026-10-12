@@ -14,10 +14,12 @@
 # Environment (all optional):
 #   BRANCH=testing           branch this Pi deploys; default: the branch this copy was
 #                            cloned from (clone -b testing to test the pipeline itself)
-#   PI_STATIC_IP=10.42.0.10/24  give the Pi a static address (NetworkManager). Saved now,
-#                            used from the next boot, so it's safe to set at home before
-#                            taking the Pi to the site. PI_GATEWAY / PI_DNS default to the
-#                            subnet's .1. Also sets the Tailscale subnet if TS_ROUTES isn't set.
+#   PI_STATIC_IP=10.42.0.10/24  override the Pi's static site address. On main the bootstrap
+#                            sets it from deploy/site.env automatically (NetworkManager): saved
+#                            now, used from the next boot, so it's safe to run at home before
+#                            taking the Pi to the site. It also sets the Tailscale subnet if
+#                            TS_ROUTES isn't set. PI_STATIC_IP=none skips it. On any other
+#                            branch (test boxes) the address is never touched.
 #   TS_ROUTES=10.42.0.0/24   subnet to share; default: PI_STATIC_IP's subnet, else the subnet
 #                            of the Pi's main interface
 #   TS_HOSTNAME=esp-soil-pi  the Pi's name on the tailnet; default: esp-soil-pi, or the
@@ -189,10 +191,25 @@ echo "==> First deploy"
 /usr/local/bin/esp-soil-deploy --force
 systemctl start esp-soil-deploy.timer
 
-# ---- static address for the Pi (optional) ----
+# ---- static site address for the Pi (main only) ----
 # Saved in NetworkManager but not applied now: if this runs at home, switching to the
 # site's address would cut the connection. It takes effect on the next boot.
 STATIC_PENDING=no
+# main = the site Pi: it takes the planned address from site.env (PI_STATIC_IP /
+# PI_GATEWAY / PI_DNS in the environment override it; PI_STATIC_IP=none skips it).
+# Any other branch is a test box and its address is left alone.
+if [ "$BRANCH" = main ]; then
+  if [ -z "${PI_STATIC_IP:-}" ] && [ -r "$HERE/site.env" ]; then
+    PI_STATIC_IP=$(sed -n 's/^PI_STATIC_IP=//p' "$HERE/site.env")
+    PI_GATEWAY=${PI_GATEWAY:-$(sed -n 's/^PI_GATEWAY=//p' "$HERE/site.env")}
+    PI_DNS=${PI_DNS:-$(sed -n 's/^PI_DNS=//p' "$HERE/site.env")}
+    echo "==> Site address from deploy/site.env (branch main)"
+  fi
+  [ "${PI_STATIC_IP:-}" = none ] && PI_STATIC_IP=""
+else
+  [ -n "${PI_STATIC_IP:-}" ] && [ "$PI_STATIC_IP" != none ] && echo "==> Static address: ignored on branch $BRANCH (only main sets the site address)"
+  PI_STATIC_IP=""
+fi
 if [ -n "${PI_STATIC_IP:-}" ]; then
   echo "==> Static address: $PI_STATIC_IP"
   case "$PI_STATIC_IP" in */*) ;; *) echo "    PI_STATIC_IP needs a prefix, e.g. 10.42.0.10/24" >&2; exit 1 ;; esac
