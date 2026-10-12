@@ -162,11 +162,11 @@ Then keep these three in step whenever a stake's address changes:
 
 ### Setting it up
 
-The full step-by-step guide is in **[`TAILSCALE.md`](TAILSCALE.md)**: the access policy (do it first), the Pi as a tagged subnet router, the Home Assistant add-on settings, your phone and laptop, checks and troubleshooting. In short:
+The full step-by-step guide is in **[`TAILSCALE.md`](TAILSCALE.md)**. It uses Tailscale's default open policy, so every device on your tailnet reaches the Pi and the stakes as if they were on your own network. In short:
 
-1. **Policy first:** tags for the Pi and Home Assistant, auto-approval for the Pi's route, and a rule letting Home Assistant reach the stakes' subnet.
-2. **Pi:** install Tailscale, turn on IP forwarding, `sudo tailscale up --advertise-tags=tag:esp-soil-pi --advertise-routes=10.42.0.0/24`. Tagged devices don't expire.
-3. **Home Assistant:** Tailscale add-on with **`userspace_networking` off** (required, or nothing in Home Assistant can reach the stakes), `accept_routes` on, tagged, and its own route and exit-node advertising off.
+1. **Pi:** install Tailscale, turn on IP forwarding, `sudo tailscale up --advertise-routes=10.42.0.0/24`.
+2. **Admin console:** approve the Pi's subnet route, and **disable key expiry** on the Pi and Home Assistant (otherwise the site drops off in a few months).
+3. **Home Assistant:** Tailscale add-on with **`userspace_networking` off** (required, or nothing in Home Assistant can reach the stakes), `accept_routes` on, and its own route and exit-node advertising off.
 4. **Check:** from the Home Assistant terminal, `curl -s -o /dev/null -w '%{http_code}\n' http://10.42.0.11/` prints `401`.
 
 ---
