@@ -141,7 +141,7 @@ cd /opt/esp-soil/dashboard && sudo docker compose -p esp-soil logs -f prometheus
 The bootstrap detects where it's running and says so (`Running on: Raspberry Pi …`, `container (lxc)`, `virtual machine (kvm)`). In a **container** it adjusts:
 
 - The tailnet name defaults to the container's own hostname, so a test box never takes the real Pi's `esp-soil-pi` name.
-- If `/dev/net/tun` is missing, it skips Tailscale and prints the two lines to add to the container's config on the Proxmox host.
+- If `/dev/net/tun` is missing, it skips Tailscale and prints a one-line command to run on the **Proxmox host**: [`proxmox-lxc-setup.sh`](proxmox-lxc-setup.sh) `<container-id>` adds the TUN device and Docker nesting (only what's missing, keeping your other settings) and restarts the container. A container can't grant itself these, which is why it runs on the host.
 - If Docker can't start, it points at Proxmox's **nesting** (and **keyctl**) features.
 - If the container can't turn on IP forwarding, it warns instead of failing.
 

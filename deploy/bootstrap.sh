@@ -160,11 +160,13 @@ if [ "$SETUP_TAILSCALE" = yes ] && [ ! -c /dev/net/tun ]; then
   # container doesn't until it's passed through.
   echo "==> Tailscale: SKIPPED, /dev/net/tun is missing"
   if [ "$IN_CONTAINER" = yes ]; then
-    echo "    Containers don't get the TUN device by default. On the Proxmox host, add to"
-    echo "    /etc/pve/lxc/<id>.conf:"
-    echo "        lxc.cgroup2.devices.allow: c 10:200 rwm"
-    echo "        lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file"
-    echo "    restart the container, then run this script again (it skips what's done)."
+    echo "    Containers don't get the TUN device by default, and a container can't grant it"
+    echo "    to itself. On the PROXMOX HOST shell, run (find the ID with: pct list):"
+    echo
+    echo "      curl -fsSL https://raw.githubusercontent.com/gunz0blazin/esp-soil/$BRANCH/deploy/proxmox-lxc-setup.sh | sh -s -- <container-id>"
+    echo
+    echo "    It adds the TUN device (and Docker nesting if needed) and restarts the container."
+    echo "    Then run this script again here; it skips what's already done."
   else
     echo "    Load the TUN module (modprobe tun) and run this script again."
   fi

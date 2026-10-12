@@ -125,7 +125,8 @@ jobs:
         run: |
           sh -n deploy/bootstrap.sh
           sh -n deploy/esp-soil-deploy
-          shellcheck -S warning deploy/bootstrap.sh deploy/esp-soil-deploy
+          sh -n deploy/proxmox-lxc-setup.sh
+          shellcheck -S warning deploy/bootstrap.sh deploy/esp-soil-deploy deploy/proxmox-lxc-setup.sh
 
       - name: Throwaway secrets in /etc/esp-soil
         run: |
