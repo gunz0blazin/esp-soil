@@ -1,0 +1,36 @@
+# Send a push notification through ntfy if /etc/esp-soil/ntfy_url exists.
+# ntfy_url holds the full topic URL, e.g. https://ntfy.sh/some-long-random-topic
+# Optional ntfy_token holds an access token for a protected topic or self-hosted server.
+- name: Look for notification settings
+  ansible.builtin.stat:
+    path: "{{ secrets_dir }}/{{ item }}"
+  loop: [ntfy_url, ntfy_token]
+  register: ntfy_files
+
+- name: Send notification
+  when: ntfy_files.results[0].stat.exists
+  block:
+    - name: Read ntfy URL
+      ansible.builtin.slurp:
+        src: "{{ secrets_dir }}/ntfy_url"
+      register: ntfy_url_raw
+
+    - name: Read ntfy token
+      ansible.builtin.slurp:
+        src: "{{ secrets_dir }}/ntfy_token"
+      register: ntfy_token_raw
+      when: ntfy_files.results[1].stat.exists
+      no_log: true
+
+    - name: Post to ntfy
+      ansible.builtin.uri:
+        url: "{{ (ntfy_url_raw.content | b64decode).strip() }}"
+        method: POST
+        body: "{{ notify_body }}"
+        headers: >-
+          {{ {'Title': notify_title, 'Tags': notify_tags, 'Priority': notify_priority}
+             | combine({'Authorization': 'Bearer ' ~ (ntfy_token_raw.content | b64decode).strip()}
+                       if ntfy_files.results[1].stat.exists else {}) }}
+        status_code: [200]
+      no_log: true
+      failed_when: false   # a notification problem must never fail a deploy

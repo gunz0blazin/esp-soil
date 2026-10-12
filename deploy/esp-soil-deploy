@@ -1,0 +1,24 @@
+#!/bin/sh
+# Pull the repo and run deploy/site.yml with ansible-pull.
+#   esp-soil-deploy           deploy only if the branch has new commits (what the timer runs)
+#   esp-soil-deploy --force   deploy even if nothing changed (after fixing a failed deploy, or a secret)
+# Settings: /etc/esp-soil/deploy.env (REPO_URL, BRANCH). Installed by bootstrap.sh and
+# kept up to date by every deploy.
+set -eu
+
+REPO_URL=https://github.com/gunz0blazin/esp-soil.git
+BRANCH=main
+CHECKOUT=/opt/esp-soil/src
+[ -r /etc/esp-soil/deploy.env ] && . /etc/esp-soil/deploy.env
+
+ONLY_IF_CHANGED=--only-if-changed
+[ "${1:-}" = "--force" ] && ONLY_IF_CHANGED=
+
+exec 9>/run/esp-soil-deploy.lock
+if ! flock -n 9; then
+  echo "Another deploy is already running."
+  exit 0
+fi
+
+ansible-pull --url "$REPO_URL" --checkout "$BRANCH" --directory "$CHECKOUT" \
+  --clean --inventory localhost, $ONLY_IF_CHANGED deploy/site.yml

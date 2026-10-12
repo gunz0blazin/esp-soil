@@ -1,8 +1,8 @@
 {
-  "uid": "grow-tent",
-  "title": "Grow Tent",
+  "uid": "soil-monitor",
+  "title": "Soil Monitor",
   "tags": [
-    "grow",
+    "soil",
     "esphome"
   ],
   "timezone": "browser",
@@ -572,7 +572,7 @@
             "uid": "prometheus"
           },
           "expr": "esphome_sensor_value{name=~\"(?i).*temperature.*\"} * 9 / 5 + 32",
-          "legendFormat": "Temp \u00b0F",
+          "legendFormat": "Temp °F",
           "refId": "A",
           "range": true,
           "instant": false

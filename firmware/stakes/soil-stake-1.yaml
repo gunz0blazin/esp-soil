@@ -1,0 +1,19 @@
+# Soil stake 1. Shared firmware: ../common.yaml
+# Build:  esphome run firmware/stakes/soil-stake-1.yaml   (needs firmware/stakes/secrets.yaml)
+# The Home Assistant add-on uses firmware/ha-stub.example.yaml instead, with the same values.
+
+substitutions:
+  plant: "1"
+  node_name: soil-stake-1
+  stake_ip: 10.42.0.11      # fixed IP for this stake (DHCP reservation)
+  dry_v: "1.92"             # calibration placeholder: replace with this probe's dry reading
+  wet_v: "0.92"             # calibration placeholder: replace with this probe's wet reading
+
+  wifi_ssid: !secret wifi_ssid
+  wifi_password: !secret wifi_password
+  web_username: !secret web_username
+  web_password: !secret web_password
+  api_key: !secret api_key
+
+packages:
+  stake: !include ../common.yaml

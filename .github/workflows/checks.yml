@@ -1,0 +1,166 @@
+# Checks every change before it can reach main.
+#
+# Runs on GitHub's cloud runners with throwaway secrets. It never deploys and
+# never has access to anything real, so it's safe on a public repo, including
+# pull requests from forks. Deploying is done by the Pi itself (deploy/README.md).
+
+name: checks
+
+on:
+  push:
+    branches: [main, testing]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ESPHOME_VERSION: "2026.9.1"   # keep in step with min_version in firmware/common.yaml
+
+jobs:
+  firmware:
+    name: Firmware (ESPHome)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install ESPHome ${{ env.ESPHOME_VERSION }}
+        run: pip install "esphome==${ESPHOME_VERSION}"
+
+      - name: Throwaway secrets
+        run: python ci/make_dummy_secrets.py firmware/stakes/secrets.yaml firmware/secrets.yaml
+
+      - name: Validate every stake config
+        run: |
+          for f in firmware/stakes/soil-stake-*.yaml; do
+            echo "::group::$f"
+            esphome config "$f" > /dev/null
+            echo "::endgroup::"
+            echo "ok  $f"
+          done
+
+      - name: Validate the Home Assistant stub against this commit's common.yaml
+        run: |
+          python ci/stub_to_local.py firmware/ha-stub.example.yaml firmware/stakes/ci-ha-stub.yaml
+          esphome config firmware/stakes/ci-ha-stub.yaml > /dev/null
+          echo "ok  ha-stub.example.yaml"
+
+      - name: Validate breadboard test firmware
+        run: esphome config firmware/moisture-test.yaml > /dev/null
+
+      - name: Cache build tools
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.platformio
+            firmware/stakes/.esphome
+          key: esphome-${{ env.ESPHOME_VERSION }}-${{ hashFiles('firmware/common.yaml') }}
+          restore-keys: esphome-${{ env.ESPHOME_VERSION }}-
+
+      # All stakes share common.yaml, so compiling one proves the firmware builds.
+      - name: Compile soil-stake-1
+        run: esphome compile firmware/stakes/soil-stake-1.yaml
+
+  dashboard:
+    name: Dashboard (Prometheus + Grafana)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read pinned image versions
+        id: images
+        run: |
+          echo "prometheus=$(grep -oE 'prom/prometheus:\S+' dashboard/docker-compose.yml)" >> "$GITHUB_OUTPUT"
+          echo "grafana=$(grep -oE 'grafana/grafana[a-z-]*:\S+' dashboard/docker-compose.yml)" >> "$GITHUB_OUTPUT"
+
+      - name: Pinned images exist and have ARM64 builds (for the Pi)
+        run: |
+          for img in "${{ steps.images.outputs.prometheus }}" "${{ steps.images.outputs.grafana }}"; do
+            docker manifest inspect "$img" > manifest.json
+            python3 -c "import json,sys; m=json.load(open('manifest.json')); p={f\"{x['platform']['os']}/{x['platform']['architecture']}\" for x in m.get('manifests',[]) if 'platform' in x}; print(sys.argv[1], sorted(p)); sys.exit(0 if 'linux/arm64' in p else 1)" "$img"
+          done
+
+      - name: Prometheus config (promtool)
+        run: |
+          printf 'ci-password' > dashboard/prometheus/esp_web_password
+          docker run --rm --entrypoint promtool \
+            -v "$PWD/dashboard/prometheus:/etc/prometheus:ro" \
+            "${{ steps.images.outputs.prometheus }}" check config /etc/prometheus/prometheus.yml
+
+      - name: Compose file
+        run: GRAFANA_ADMIN_PASSWORD=ci docker compose -f dashboard/docker-compose.yml config --quiet
+
+      - name: Targets and dashboard files
+        run: |
+          pip install pyyaml
+          python3 ci/check_dashboard.py dashboard
+
+  deploy:
+    name: Deploy playbook (dry run on the runner)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible
+        run: pip install ansible-core
+
+      - name: Playbook syntax
+        run: ansible-playbook --syntax-check -i localhost, deploy/site.yml
+
+      - name: Shell scripts
+        run: |
+          sh -n deploy/bootstrap.sh
+          sh -n deploy/esp-soil-deploy
+          shellcheck -S warning deploy/bootstrap.sh deploy/esp-soil-deploy
+
+      - name: Throwaway secrets in /etc/esp-soil
+        run: |
+          sudo install -d -m 0700 /etc/esp-soil
+          printf 'ci-password' | sudo tee /etc/esp-soil/esp_web_password > /dev/null
+          printf 'ci-grafana-password' | sudo tee /etc/esp-soil/grafana_admin_password > /dev/null
+
+      # Runs the real playbook against this runner: validate, sync, compose up,
+      # health checks. Stakes aren't reachable from here, so they'll show as down.
+      - name: Deploy (first run)
+        run: sudo env "PATH=$PATH" ANSIBLE_LOCALHOST_WARNING=false ansible-playbook -i localhost, deploy/site.yml -e manage_host=false
+
+      - name: Deploy again (should change nothing)
+        run: |
+          sudo env "PATH=$PATH" ANSIBLE_LOCALHOST_WARNING=false ansible-playbook -i localhost, deploy/site.yml -e manage_host=false | tee second-run.txt
+          grep -E 'changed=0 ' second-run.txt
+
+      - name: Grafana loaded the dashboard and data source
+        run: |
+          PW=$(sudo cat /etc/esp-soil/grafana_admin_password)
+          curl -fsS -u "admin:$PW" http://127.0.0.1:3000/api/search?query=Soil | tee search.json
+          grep -q '"uid":"soil-monitor"' search.json
+          curl -fsS -u "admin:$PW" http://127.0.0.1:3000/api/datasources/uid/prometheus/health
+
+      - name: Prometheus found every stake in targets/
+        run: |
+          expected=$(cat dashboard/prometheus/targets/*.yml | grep -c '^- targets:')
+          for i in $(seq 1 30); do
+            found=$(curl -fsS http://127.0.0.1:9090/api/v1/targets | python3 -c "import json,sys; print(len(json.load(sys.stdin)['data']['activeTargets']))")
+            [ "$found" = "$expected" ] && break
+            sleep 4
+          done
+          echo "targets: $found of $expected"
+          [ "$found" = "$expected" ]
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose -p esp-soil -f /opt/esp-soil/dashboard/docker-compose.yml logs --tail 80 || true

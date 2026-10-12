@@ -1,0 +1,10 @@
+[Unit]
+Description=ESP-Soil deploy (ansible-pull from GitHub)
+Documentation=https://github.com/gunz0blazin/esp-soil/blob/main/deploy/README.md
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/esp-soil-deploy
+TimeoutStartSec=30min

@@ -1,0 +1,221 @@
+# ESP-Soil server deploy, run on the Pi by ansible-pull (see deploy/README.md).
+#
+# What it does, in order:
+#   1. checks the secrets in /etc/esp-soil exist
+#   2. validates the new Prometheus config and compose file BEFORE touching anything live
+#   3. syncs dashboard/ from the repo checkout into /opt/esp-soil/dashboard
+#   4. docker compose up, restarting Prometheus/Grafana only if their config changed
+#   5. waits until both are healthy and counts how many stakes are UP
+#   6. sends a notification (optional) for success or failure
+#
+# It never touches the stakes. Firmware is flashed from the ESPHome add-on.
+
+- name: Deploy ESP-Soil monitoring stack
+  hosts: localhost
+  connection: local
+  become: true
+  gather_facts: false
+
+  vars:
+    repo_dir: "{{ playbook_dir | dirname }}"
+    secrets_dir: /etc/esp-soil
+    deploy_dir: /opt/esp-soil/dashboard
+    compose_project: esp-soil
+    prometheus_url: http://127.0.0.1:9090
+    grafana_url: http://127.0.0.1:3000
+    # When false (CI), skip installing the wrapper/systemd units onto the machine.
+    manage_host: true
+
+  tasks:
+    - name: Deploy
+      block:
+        - name: Read the commit being deployed
+          ansible.builtin.command: git -C {{ repo_dir }} log -1 --format=%h%x20%s
+          register: commit
+          changed_when: false
+
+        - name: Check required secrets exist
+          ansible.builtin.stat:
+            path: "{{ secrets_dir }}/{{ item }}"
+          loop: [esp_web_password, grafana_admin_password]
+          register: secret_files
+
+        - name: Stop if a secret is missing
+          ansible.builtin.assert:
+            that: item.stat.exists and item.stat.isreg
+            fail_msg: >-
+              {{ secrets_dir }}/{{ item.item }} is missing or not a file.
+              See deploy/README.md, "Secrets on the Pi".
+            quiet: true
+          loop: "{{ secret_files.results }}"
+          loop_control:
+            label: "{{ item.item }}"
+
+        - name: Read secrets
+          ansible.builtin.slurp:
+            src: "{{ secrets_dir }}/{{ item }}"
+          loop: [esp_web_password, grafana_admin_password]
+          register: secret_values
+          no_log: true
+
+        - name: Find the pinned Prometheus image
+          ansible.builtin.set_fact:
+            prometheus_image: >-
+              {{ lookup('ansible.builtin.file', repo_dir ~ '/dashboard/docker-compose.yml')
+                 | regex_search('prom/prometheus:\S+') }}
+
+        # ---- validate the new config before anything live changes ----
+        - name: Validate Prometheus config (promtool)
+          ansible.builtin.command: >-
+            docker run --rm --entrypoint promtool
+            -v {{ repo_dir }}/dashboard/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+            -v {{ repo_dir }}/dashboard/prometheus/targets:/etc/prometheus/targets:ro
+            -v {{ secrets_dir }}/esp_web_password:/etc/prometheus/esp_web_password:ro
+            {{ prometheus_image }} check config /etc/prometheus/prometheus.yml
+          changed_when: false
+
+        - name: Validate compose file
+          ansible.builtin.command: docker compose -f {{ repo_dir }}/dashboard/docker-compose.yml config --quiet
+          environment:
+            GRAFANA_ADMIN_PASSWORD: validate-only
+          changed_when: false
+
+        # ---- apply ----
+        - name: Create deploy folder
+          ansible.builtin.file:
+            path: "{{ deploy_dir }}"
+            state: directory
+            mode: "0755"
+
+        - name: Sync dashboard/ into the deploy folder
+          ansible.builtin.command: >-
+            rsync -a --delete --itemize-changes
+            --exclude /.env --exclude /prometheus/esp_web_password
+            {{ repo_dir }}/dashboard/ {{ deploy_dir }}/
+          register: sync
+          changed_when: sync.stdout | trim | length > 0
+
+        - name: Install the board password for Prometheus
+          ansible.builtin.copy:
+            content: "{{ (secret_values.results[0].content | b64decode).rstrip('\r\n') }}"
+            dest: "{{ deploy_dir }}/prometheus/esp_web_password"
+            mode: "0644"   # Prometheus runs as "nobody" inside the container
+          register: web_pw
+          no_log: true
+
+        - name: Write compose .env
+          ansible.builtin.copy:
+            content: "GRAFANA_ADMIN_PASSWORD={{ (secret_values.results[1].content | b64decode).rstrip('\r\n') }}\n"
+            dest: "{{ deploy_dir }}/.env"
+            mode: "0600"
+          no_log: true
+
+        - name: Start or update the stack
+          ansible.builtin.command: >-
+            docker compose -p {{ compose_project }} -f {{ deploy_dir }}/docker-compose.yml
+            up -d --remove-orphans --quiet-pull
+          register: up
+          changed_when: up.stderr is search('Created|Recreated|Started|Pulled')
+
+        # Bind-mounted config files don't restart a container on their own.
+        # Targets are re-read automatically, so they're not in this list.
+        - name: Restart Prometheus if its config or password changed
+          ansible.builtin.command: docker compose -p {{ compose_project }} -f {{ deploy_dir }}/docker-compose.yml restart prometheus
+          when: >-
+            web_pw is changed or
+            (sync.stdout_lines | select('search', ' prometheus/prometheus\.yml$') | list | length > 0)
+
+        - name: Restart Grafana if provisioning changed
+          ansible.builtin.command: docker compose -p {{ compose_project }} -f {{ deploy_dir }}/docker-compose.yml restart grafana
+          when: sync.stdout_lines | select('search', ' grafana/provisioning/') | list | length > 0
+
+        # ---- health ----
+        - name: Wait for Prometheus
+          ansible.builtin.uri:
+            url: "{{ prometheus_url }}/-/ready"
+          register: prom_ready
+          until: prom_ready.status == 200
+          retries: 30
+          delay: 4
+
+        - name: Wait for Grafana
+          ansible.builtin.uri:
+            url: "{{ grafana_url }}/api/health"
+          register: graf_ready
+          until: graf_ready.status == 200
+          retries: 30
+          delay: 4
+
+        # Give Prometheus up to a minute to load targets/ and scrape each stake
+        # once, so the count below is real rather than 0 right after a restart.
+        - name: Count stakes Prometheus can reach
+          ansible.builtin.uri:
+            url: "{{ prometheus_url }}/api/v1/targets?state=active"
+            return_content: true
+          register: targets
+          until: >-
+            targets.json.data.activeTargets | length > 0 and
+            targets.json.data.activeTargets | selectattr('health', 'equalto', 'unknown') | list | length == 0
+          retries: 15
+          delay: 4
+          ignore_errors: true   # an empty or slow target list shouldn't fail the deploy
+
+        - name: Stop if Prometheus didn't answer at all
+          ansible.builtin.assert:
+            that: targets.json is defined
+            fail_msg: Prometheus is up but its targets API didn't respond.
+            quiet: true
+
+        - name: Summarize
+          ansible.builtin.set_fact:
+            stakes_total: "{{ targets.json.data.activeTargets | length }}"
+            stakes_up: "{{ targets.json.data.activeTargets | selectattr('health', 'equalto', 'up') | list | length }}"
+            stakes_down: >-
+              {{ targets.json.data.activeTargets | rejectattr('health', 'equalto', 'up')
+                 | map(attribute='labels.board') | list }}
+
+        - name: Report
+          ansible.builtin.debug:
+            msg: "Deployed {{ commit.stdout }}. Stakes up: {{ stakes_up }}/{{ stakes_total }} {{ stakes_down if stakes_down | length else '' }}"
+
+        # ---- keep the pipeline itself up to date ----
+        - name: Install deploy command and systemd units
+          ansible.builtin.copy:
+            src: "{{ repo_dir }}/deploy/{{ item.src }}"
+            dest: "{{ item.dest }}"
+            mode: "{{ item.mode }}"
+          loop:
+            - {src: esp-soil-deploy, dest: /usr/local/bin/esp-soil-deploy, mode: "0755"}
+            - {src: systemd/esp-soil-deploy.service, dest: /etc/systemd/system/esp-soil-deploy.service, mode: "0644"}
+            - {src: systemd/esp-soil-deploy.timer, dest: /etc/systemd/system/esp-soil-deploy.timer, mode: "0644"}
+          register: units
+          when: manage_host | bool
+
+        - name: Reload systemd
+          ansible.builtin.systemd:
+            daemon_reload: true
+          when: manage_host | bool and units is changed
+
+        - name: Notify success
+          ansible.builtin.include_tasks: notify.yml
+          vars:
+            notify_title: "ESP-Soil deployed"
+            notify_tags: white_check_mark
+            notify_priority: default
+            notify_body: "{{ commit.stdout }}\nStakes up: {{ stakes_up }}/{{ stakes_total }}{{ ('\nDown: ' ~ (stakes_down | join(', '))) if stakes_down | length else '' }}"
+
+      rescue:
+        - name: Notify failure
+          ansible.builtin.include_tasks: notify.yml
+          vars:
+            notify_title: "ESP-Soil deploy FAILED"
+            notify_tags: x
+            notify_priority: high
+            notify_body: >-
+              {{ commit.stdout | default('unknown commit') }}
+              failed at: {{ ansible_failed_task.name | default('?') }}.
+              Run 'journalctl -u esp-soil-deploy' on the Pi for details.
+
+        - name: Fail the run
+          ansible.builtin.fail:
+            msg: "Deploy failed at: {{ ansible_failed_task.name | default('?') }}"

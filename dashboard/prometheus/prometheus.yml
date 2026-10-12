@@ -4,7 +4,7 @@ global:
 scrape_configs:
   - job_name: esphome
     metrics_path: /metrics
-    # Boards are flashed with a web_server login (web_username / web_password in
+    # Stakes are flashed with a web_server login (web_username / web_password in
     # the ESPHome secrets.yaml). Prometheus sends it on every scrape. Boards
     # without a login just ignore it, so old and new firmware can share this job.
     # The password lives in esp_web_password next to this file (gitignored),
@@ -12,19 +12,9 @@ scrape_configs:
     basic_auth:
       username: esp
       password_file: /etc/prometheus/esp_web_password
-    static_configs:
-      # Breadboard test board (firmware/moisture-test.yaml)
-      - targets:
-          - 192.168.1.XXX:80
-        labels:
-          board: moisture-test
-
-      # Soil stakes (firmware/soil-stake.yaml). One line per stake, give each a fixed IP.
-      # - targets:
-      #     - 192.168.1.XXX:80
-      #   labels:
-      #     board: soil-stake-1
-      # - targets:
-      #     - 192.168.1.XXX:80
-      #   labels:
-      #     board: soil-stake-2
+    # The list of stakes lives in targets/*.yml. Prometheus re-reads those files
+    # on its own, so adding or removing a stake doesn't need a restart.
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/*.yml
+        refresh_interval: 1m

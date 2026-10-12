@@ -1,0 +1,14 @@
+# One entry per stake: its fixed IP and the web_server port, plus a board label.
+# Prometheus picks up changes to this file within a minute, no restart needed.
+# Keep the IPs in step with stake_ip in firmware/stakes/ and your DHCP reservations.
+
+- targets: ["10.42.0.11:80"]
+  labels: {board: soil-stake-1}
+- targets: ["10.42.0.12:80"]
+  labels: {board: soil-stake-2}
+- targets: ["10.42.0.13:80"]
+  labels: {board: soil-stake-3}
+- targets: ["10.42.0.14:80"]
+  labels: {board: soil-stake-4}
+- targets: ["10.42.0.15:80"]
+  labels: {board: soil-stake-5}

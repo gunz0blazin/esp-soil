@@ -1,0 +1,141 @@
+# ESP-Soil stake firmware: shared by every stake.
+#
+# Don't flash this file directly. Each stake has a small file that sets its own
+# values and pulls this one in:
+#   - firmware/stakes/soil-stake-N.yaml   (in this repo; used by CI and local builds)
+#   - firmware/ha-stub.example.yaml       (template for the ESPHome add-on in Home
+#                                          Assistant; pulls this file from GitHub)
+#
+# Hardware: Seeed XIAO ESP32-C3 + SEN0193 capacitive probe (hard-wired) + AHT10
+#   D1 / GPIO3  <- probe signal, through divider R1 10k / R2 33k (keeps it under the C3's ~2.5 V ADC limit)
+#   D4 / GPIO6  -> AHT10 SDA
+#   D5 / GPIO7  -> AHT10 SCL
+#   3V3 / GND   -> AHT10 + probe power
+#
+# Values every stake file must set (substitutions):
+#   plant           stake number, used in every sensor name ("Plant 1 moisture")
+#   node_name       device hostname, e.g. soil-stake-1
+#   stake_ip        the stake's fixed IP (DHCP reservation); ESPHome uses it for OTA
+#                   and online status, because mDNS discovery doesn't cross Tailscale
+#   dry_v / wet_v   calibration, volts at the ESP pin. Dry reads HIGHER than wet.
+#                   dry_v = probe in air / dry mix, wet_v = 30 min after a full watering
+#   wifi_ssid, wifi_password, web_username, web_password, api_key
+#                   from the stake file's own secrets.yaml. Remote packages can't
+#                   use !secret, so secrets come in as substitutions.
+#                   api_key also encrypts firmware updates (see ota: below).
+# Optional:
+#   leaf_offset_c   leaf temperature below air temperature for leaf VPD (default 2.0)
+
+substitutions:
+  leaf_offset_c: "2.0"
+
+esphome:
+  name: ${node_name}
+  friendly_name: Soil Stake ${plant}
+  min_version: 2026.9.0   # the version CI builds with; update ESPHome if this blocks a build
+
+esp32:
+  board: seeed_xiao_esp32c3
+  framework:
+    type: esp-idf
+
+logger:
+
+wifi:
+  ssid: ${wifi_ssid}
+  password: ${wifi_password}
+  use_address: ${stake_ip}
+
+# Home Assistant connection, encrypted. reboot_timeout: 0s stops the stake from
+# rebooting every 15 minutes when Home Assistant isn't connected (remote site,
+# tunnel down). Readings keep flowing to Prometheus either way.
+api:
+  encryption:
+    key: ${api_key}
+  reboot_timeout: 0s
+
+# Firmware updates over the network are encrypted with the same key as the API
+# (ESPHome 2026.9+). A stake refuses any update that doesn't use this key.
+# The key can't be changed over the air: changing it means a USB reflash.
+# OTA also turns on safe mode, which catches boot loops after a bad update so
+# the stake can still be reflashed over the network.
+ota:
+  - platform: esphome
+    encryption:
+
+# Prometheus reads http://<stake-ip>/metrics.
+# The login protects the web page AND /metrics, so Prometheus logs in with the
+# same user/password (dashboard/prometheus/prometheus.yml).
+# type: basic is required: Prometheus can't do digest, and ESPHome's default
+# switches to digest in 2027.1.
+web_server:
+  port: 80
+  auth:
+    username: ${web_username}
+    password: ${web_password}
+    type: basic
+
+prometheus:
+
+i2c:
+  sda: GPIO6
+  scl: GPIO7
+
+sensor:
+  # ---------- soil probe ----------
+  - platform: adc
+    pin: GPIO3
+    name: "Plant ${plant} raw"
+    id: probe_raw
+    attenuation: 12db
+    accuracy_decimals: 3
+    update_interval: 5s
+    filters:
+      - median:
+          window_size: 7
+          send_every: 2
+    on_value:
+      then:
+        - lambda: |-
+            float pct = (${dry_v} - x) / (${dry_v} - ${wet_v}) * 100.0f;
+            if (pct < 0) pct = 0;
+            if (pct > 100) pct = 100;
+            id(moisture).publish_state(pct);
+
+  - platform: template
+    name: "Plant ${plant} moisture"
+    id: moisture
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    state_class: measurement
+    icon: "mdi:water-percent"
+    update_interval: never
+
+  # ---------- climate ----------
+  - platform: aht10
+    variant: AHT10
+    update_interval: 15s
+    temperature:
+      name: "Plant ${plant} temperature"
+      id: temp_c
+      # filters:
+      #   - offset: -1.0   # the ESP warms the board slightly; correct vs a trusted thermometer
+    humidity:
+      name: "Plant ${plant} humidity"
+      id: rh
+
+  - platform: template
+    name: "Plant ${plant} leaf VPD"
+    unit_of_measurement: "kPa"
+    accuracy_decimals: 2
+    update_interval: 15s
+    lambda: |-
+      if (!id(temp_c).has_state() || !id(rh).has_state()) return NAN;
+      float t = id(temp_c).state, tl = t - ${leaf_offset_c};
+      float svp_air  = 0.6108f * expf(17.27f * t  / (t  + 237.3f));
+      float svp_leaf = 0.6108f * expf(17.27f * tl / (tl + 237.3f));
+      return svp_leaf - svp_air * id(rh).state / 100.0f;
+
+  - platform: wifi_signal
+    name: "Plant ${plant} WiFi"
+    update_interval: 60s
