@@ -13,7 +13,7 @@ web_server:
 prometheus:
 ```
 
-Check it works: open `http://192.168.1.162/metrics` in a browser. You should see lines like
+Check it works: open `http://192.168.1.XXX/metrics` in a browser. You should see lines like
 `esphome_sensor_value{id="soil_moisture",name="Soil moisture",...} 53`.
 
 ## 2. Server (Proxmox LXC/VM with Docker)
@@ -22,7 +22,7 @@ Check it works: open `http://192.168.1.162/metrics` in a browser. You should see
 # copy this folder over, then:
 cd dashboard
 nano docker-compose.yml          # change GF_SECURITY_ADMIN_PASSWORD
-nano prometheus/prometheus.yml   # check the board IP (192.168.1.162)
+nano prometheus/prometheus.yml   # check the board IP (192.168.1.XXX)
 docker compose up -d
 ```
 
