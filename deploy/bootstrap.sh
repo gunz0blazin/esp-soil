@@ -100,11 +100,9 @@ ask_secret() {   # ask_secret <file> <prompt>
     echo "    $1 already set, keeping it"
     return
   fi
+  # Typed in the clear on purpose, so you can see what you entered.
   printf '    %s: ' "$2"
-  stty -echo 2>/dev/null || true
   read -r value
-  stty echo 2>/dev/null || true
-  echo
   [ -n "$value" ] || { echo "    empty, aborting" >&2; exit 1; }
   printf '%s' "$value" > "$SECRETS/$1"
   chmod 0600 "$SECRETS/$1"
@@ -228,8 +226,61 @@ if [ "$SETUP_TAILSCALE" = yes ]; then
 fi
 
 echo
-echo "Done. Grafana: http://$(hostname -I | awk '{print $1}'):3000 (user admin)"
-echo "The Pi now checks GitHub every 5 minutes. Logs: journalctl -u esp-soil-deploy"
+echo "==> Checking everything is running"
+wait_for() {   # wait_for <url>: up to 60 s
+  i=0
+  while [ "$i" -lt 30 ]; do
+    curl -fsS -o /dev/null "$1" 2>/dev/null && return 0
+    i=$((i + 1)); sleep 2
+  done
+  return 1
+}
+PROM_STATE=running; wait_for http://127.0.0.1:9090/-/ready    || PROM_STATE="NOT RESPONDING"
+GRAF_STATE=running; wait_for http://127.0.0.1:3000/api/health || GRAF_STATE="NOT RESPONDING"
+
+GRAF_PW=$(cat "$SECRETS/grafana_admin_password")
+WEB_PW=$(cat "$SECRETS/esp_web_password")
+WEB_USER=$(sed -n 's/^ *username: *//p' /opt/esp-soil/dashboard/prometheus/prometheus.yml 2>/dev/null | head -n 1)
+WEB_USER=${WEB_USER:-esp}
+if [ "$GRAF_STATE" = running ]; then
+  if curl -fsS -o /dev/null -u "admin:$GRAF_PW" http://127.0.0.1:3000/api/user 2>/dev/null; then
+    GRAF_LOGIN="login checked, works"
+  else
+    GRAF_LOGIN="LOGIN FAILED: the password was probably changed in Grafana since its first start"
+  fi
+else
+  GRAF_LOGIN="not checked"
+fi
+LAN_IP=$(hostname -I | awk '{print $1}')
+TS_IP=""
+[ "$TS_DONE" = yes ] && TS_IP=$(tailscale ip -4 2>/dev/null | head -n 1 || true)
+
+echo
+echo "================================================================"
+echo " ESP-Soil on $(hostname)  ($PLATFORM)"
+echo " Deploys branch '$BRANCH' every 5 minutes  (journalctl -u esp-soil-deploy)"
+echo "----------------------------------------------------------------"
+echo " Grafana     [$GRAF_STATE]"
+echo "   http://$LAN_IP:3000"
+[ -n "$TS_IP" ] && echo "   http://$TS_HOSTNAME:3000  /  http://$TS_IP:3000   (tailnet)"
+echo "   user: admin    password: $GRAF_PW"
+echo "   ($GRAF_LOGIN)"
+echo
+echo " Prometheus  [$PROM_STATE]"
+echo "   http://$LAN_IP:9090"
+[ -n "$TS_IP" ] && echo "   http://$TS_HOSTNAME:9090  /  http://$TS_IP:9090   (tailnet)"
+echo "   no login: keep it on your own network / tailnet"
+echo
+echo " Stakes (web page + /metrics, used by Prometheus)"
+echo "   user: $WEB_USER    password: $WEB_PW"
+echo "================================================================"
+echo " Passwords are stored in $SECRETS/ (root only)."
+
+if [ "$PROM_STATE" != running ] || [ "$GRAF_STATE" != running ]; then
+  echo
+  echo "Something isn't running. Check: cd /opt/esp-soil/dashboard && docker compose -p esp-soil ps" >&2
+  exit 1
+fi
 if [ "$TS_DONE" = skipped ]; then
   echo
   echo "Tailscale was skipped: /dev/net/tun is missing (see the message above)."

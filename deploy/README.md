@@ -84,7 +84,30 @@ Options:
 | Deploy a branch other than the one you cloned | `sudo BRANCH=testing deploy/bootstrap.sh` |
 | Log in without a browser | `sudo TS_AUTHKEY=tskey-... deploy/bootstrap.sh` (an auth key from the admin console) |
 
-When it finishes, Grafana is at `http://<pi-ip>:3000` (user `admin`) with the **Soil Monitor** dashboard as the home page. Running the bootstrap again is safe: it skips what's done and never overwrites a secret.
+The passwords are shown as you type them, so you can check them before pressing Enter.
+
+When it finishes, it checks that Prometheus and Grafana are answering, tries the Grafana login, and prints a summary:
+
+```
+================================================================
+ ESP-Soil on esp-soil-pi  (Raspberry Pi (…))
+ Deploys branch 'main' every 5 minutes  (journalctl -u esp-soil-deploy)
+----------------------------------------------------------------
+ Grafana     [running]
+   http://10.42.0.10:3000
+   http://esp-soil-pi:3000  /  http://100.x.y.z:3000   (tailnet)
+   user: admin    password: …
+   (login checked, works)
+
+ Prometheus  [running]
+   http://10.42.0.10:9090
+   …
+ Stakes (web page + /metrics, used by Prometheus)
+   user: esp    password: …
+================================================================
+```
+
+Grafana opens with the **Soil Monitor** dashboard as its home page. If something isn't running, the script says so and exits with an error. Running the bootstrap again is safe: it skips what's done and never overwrites a secret.
 
 ### Secrets on the Pi
 
