@@ -10,6 +10,6 @@ out=$(mktemp)
 status=${PIPESTATUS[0]}
 if [ "$status" -ne 0 ]; then
   msg=$(tail -n 40 "$out" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk 'BEGIN{ORS="%0A"} {print}')
-  echo "::error title=${title} failed::${msg}"
+  echo "::error title=${title} failed::${msg}" >&2
 fi
 exit "$status"
