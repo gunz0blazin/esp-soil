@@ -181,7 +181,7 @@ On the Tailscale **Machines** page:
 | Works from your laptop, not from Home Assistant | The policy doesn't allow `tag:homeassistant` to that port, or the add-on isn't tagged | Check the `tags` option and the policy rules |
 | Linux laptop can't reach the stakes | Linux doesn't accept routes by default | `sudo tailscale set --accept-routes` |
 | ESPHome add-on shows a stake **Offline** but its logs work | The badge uses mDNS, which doesn't cross Tailscale | Harmless: installs and logs use `stake_ip` directly. To fix the badge, turn on ping-based status (see step 5) |
-| Wireless logs or installs fail but `curl` works | `stake_ip` in the add-on's file is wrong, or port 6053/3232 is blocked | Check `stake_ip`; check the policy and the VLAN firewall allow 6053 and 3232 from the Pi |
+| Wireless logs or installs fail but `curl` works | `stake_ip` in the add-on's file is wrong, or the policy doesn't allow 6053/3232 | Check `stake_ip` and the Home Assistant rule in the policy |
 | `tailscale up` says the tag isn't allowed | The tag isn't in `tagOwners` yet, or another user owns it | Save the policy from step 1 first, logged in as the tag owner |
 | The site dropped off after a few months | The Pi's key expired (it joined without a tag) | On site: `sudo tailscale up --force-reauth`, then disable key expiry |
 | Home network devices unreachable after adding the policy | The policy replaced the default allow-all | Keep the first rule (`you@example.com` → `*:*`), and add rules for anything else that used to work |

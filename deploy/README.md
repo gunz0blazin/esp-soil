@@ -152,11 +152,13 @@ Then keep these three in step whenever a stake's address changes:
 
 **Wi-Fi:** give the VLAN its own SSID on 2.4 GHz (the ESP32-C3 has no 5 GHz) with WPA2-PSK. Use that SSID and password for `wifi_ssid` / `wifi_password` in the add-on's secrets. WPA3-only can be unreliable with ESP32 boards, so allow WPA2.
 
-**Firewall rules for the VLAN** (recommended):
+**Router rules: as few as possible.**
 
-- The **Pi** needs outbound internet: GitHub (to pull `main`), Docker Hub (images), Tailscale, and ntfy if you use it. Nothing needs to reach it from the internet.
-- The **stakes** need nothing outside the VLAN. Block their internet access and any route to other VLANs. Everything that talks to them (Prometheus on the Pi, Home Assistant over Tailscale) comes through the Pi.
-- Allow the Pi to reach the stakes on TCP 80 (web page and `/metrics`), TCP 6053 (the ESPHome API), TCP 3232 (firmware updates on ESP32) and ping (the add-on uses it to show a stake as online). Home Assistant's traffic arrives through the Pi's Tailscale route, so to the VLAN it looks like it comes from the Pi; this one rule covers both.
+- **No port forwards, no UPnP, no allow rules.** Tailscale connects outbound from the Pi and works through NAT by itself; nothing reaches the site from the internet.
+- **The Pi and the stakes are on the same VLAN,** so their traffic never passes through the router's firewall. Home Assistant's traffic arrives through the Pi's Tailscale route, so to the VLAN it's local too.
+- The Pi needs ordinary outbound internet (GitHub, Docker Hub, Tailscale, ntfy), which a new VLAN has by default.
+- **Optional, one toggle:** turn on **Isolate Network** for the VLAN in UniFi. It blocks the VLAN from your other networks without writing rules.
+- **Leave client device isolation off** on the stakes' SSID, so the stakes and the Pi can talk to each other.
 
 ### Setting it up
 
