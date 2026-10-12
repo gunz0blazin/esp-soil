@@ -1,4 +1,5 @@
-# Grow tent soil moisture monitor
+# Breadboard test board, probe + OLED only (no AHT10). Split screen: moisture % and raw volts.
+# For the version with the AHT10 (temp, RH, VPD) use moisture-test.yaml.
 
 web_server:
   port: 80

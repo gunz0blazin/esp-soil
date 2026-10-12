@@ -1,0 +1,9 @@
+# ESPHome
+secrets.yaml
+.esphome/
+**/.esphome/
+
+# case/pcb generator output
+**/out/
+*.npz
+__pycache__/

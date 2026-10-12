@@ -18,7 +18,8 @@ I built it because "water when it starts to wilt" was a bad system, and weighing
 ```
 firmware/
   soil-stake.yaml          the stake firmware (one per pot)
-  moisture-test.yaml       breadboard test board with an OLED
+  moisture-test.yaml       breadboard test board: probe + AHT10 + OLED
+  moisture-test-probe-only.yaml   same board, probe + OLED only
   legacy/                  the original 4-probe OLED + touch button build
 hardware/
   pcb/                     Gerbers, build guide PDF, generator scripts

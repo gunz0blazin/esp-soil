@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: esphome
+    metrics_path: /metrics
+    static_configs:
+      # Breadboard test board (firmware/moisture-test.yaml)
+      - targets:
+          - 192.168.1.162:80
+        labels:
+          board: moisture-test
+
+      # Soil stakes (firmware/soil-stake.yaml). One line per stake, give each a fixed IP.
+      # - targets:
+      #     - 192.168.1.XXX:80
+      #   labels:
+      #     board: soil-stake-1
+      # - targets:
+      #     - 192.168.1.XXX:80
+      #   labels:
+      #     board: soil-stake-2
