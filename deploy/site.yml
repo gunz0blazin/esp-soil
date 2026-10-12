@@ -89,7 +89,7 @@
 
         - name: Sync dashboard/ into the deploy folder
           ansible.builtin.command: >-
-            rsync -a --delete --itemize-changes
+            rsync -a --omit-dir-times --delete --itemize-changes
             --exclude /.env --exclude /prometheus/esp_web_password
             {{ repo_dir }}/dashboard/ {{ deploy_dir }}/
           register: sync
