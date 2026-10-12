@@ -11,6 +11,11 @@ BRANCH=main
 CHECKOUT=/opt/esp-soil/src
 [ -r /etc/esp-soil/deploy.env ] && . /etc/esp-soil/deploy.env
 
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Run as root: sudo esp-soil-deploy $*" >&2
+  exit 1
+fi
+
 ONLY_IF_CHANGED=--only-if-changed
 [ "${1:-}" = "--force" ] && ONLY_IF_CHANGED=
 
@@ -20,5 +25,7 @@ if ! flock -n 9; then
   exit 0
 fi
 
+# --limit localhost: otherwise ansible-pull also looks for this machine's hostname
+# in the inventory and warns that it can't find it.
 ansible-pull --url "$REPO_URL" --checkout "$BRANCH" --directory "$CHECKOUT" \
-  --clean --inventory localhost, $ONLY_IF_CHANGED deploy/site.yml
+  --clean --inventory localhost, --limit localhost $ONLY_IF_CHANGED deploy/site.yml

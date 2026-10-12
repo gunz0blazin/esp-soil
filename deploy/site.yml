@@ -13,7 +13,8 @@
 - name: Deploy ESP-Soil monitoring stack
   hosts: localhost
   connection: local
-  become: true
+  # Runs as root already (systemd timer, bootstrap, `sudo esp-soil-deploy`), so no
+  # privilege escalation: that would need sudo installed, which minimal installs lack.
   gather_facts: false
 
   vars:
@@ -29,8 +30,20 @@
   tasks:
     - name: Deploy
       block:
+        - name: Check this is running as root
+          ansible.builtin.command: id -u
+          register: uid
+          changed_when: false
+
+        - name: Stop if not root
+          ansible.builtin.assert:
+            that: uid.stdout == "0"
+            fail_msg: The deploy writes to /opt and /etc, so run it as root (sudo esp-soil-deploy).
+            quiet: true
+
         - name: Read the commit being deployed
-          ansible.builtin.command: git -C {{ repo_dir }} log -1 --format=%h%x20%s
+          # safe.directory: the checkout may belong to another user (e.g. in CI)
+          ansible.builtin.command: git -c safe.directory=* -C {{ repo_dir }} log -1 --format=%h%x20%s
           register: commit
           changed_when: false
 
