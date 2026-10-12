@@ -45,11 +45,8 @@ In the Tailscale admin console, open **Access controls** and edit the policy fil
     // You (all your logged-in devices): everything, including the site VLAN.
     { "action": "accept", "src": ["you@example.com"], "dst": ["*:*"] },
 
-    // Home Assistant: the stakes only. Web page/metrics, API, firmware updates.
-    { "action": "accept", "src": ["tag:homeassistant"], "dst": ["10.42.0.0/24:80,6053,3232"] },
-
-    // Home Assistant: ping the stakes (the ESPHome add-on uses it for online status).
-    { "action": "accept", "proto": "icmp", "src": ["tag:homeassistant"], "dst": ["10.42.0.0/24:*"] }
+    // Home Assistant: the whole stakes subnet (TCP, UDP and ping), nothing else.
+    { "action": "accept", "src": ["tag:homeassistant"], "dst": ["10.42.0.0/24:*"] }
   ]
 }
 ```
@@ -59,7 +56,7 @@ What this gives you:
 | From | Can reach | Can't reach |
 |---|---|---|
 | Your phone and laptop | everything on the tailnet, the Pi (Grafana, SSH), the stakes | |
-| Home Assistant | the stakes, only on the ports ESPHome uses | the Pi, your other devices |
+| Home Assistant | anything on the stakes' subnet | the Pi, your other devices |
 | The Pi | nothing on the tailnet (it only answers) | everything |
 
 Nothing at the site can start a connection into your home network.
@@ -163,7 +160,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://10.42.0.11/   # 401 = stake reac
 
 In the **ESPHome add-on**, **Logs → Wirelessly** on a stake streams its log. That's the real test: it connects straight to `stake_ip`.
 
-The add-on's **Online/Offline** badge is a separate thing. By default the add-on decides it with mDNS, which doesn't cross Tailscale, so stakes can show **Offline** while logs and **Install → Wirelessly** work fine. If the badge bothers you, turn on ESPHome's ping-based status (it has been the `status_use_ping` option in the add-on's configuration; newer versions may have moved it into the dashboard's own settings). The policy in step 1 already allows the ping.
+The add-on's **Online/Offline** badge is a separate thing. By default the add-on decides it with mDNS, which doesn't cross Tailscale, so stakes can show **Offline** while logs and **Install → Wirelessly** work fine. If the badge bothers you, turn on ESPHome's ping-based status (it has been the `status_use_ping` option in the add-on's configuration; newer versions may have moved it into the dashboard's own settings). The policy in step 1 already allows ping.
 
 On the Tailscale **Machines** page:
 
@@ -178,10 +175,10 @@ On the Tailscale **Machines** page:
 |---|---|---|
 | `curl` from Home Assistant times out | Userspace networking is still on, or `accept_routes` is off | Check both options in the add-on, then restart it. `ip addr show tailscale0` must show the interface |
 | Times out from everywhere | The route isn't approved, or forwarding isn't on | Machines → the Pi → Subnets; on the Pi, `sysctl net.ipv4.ip_forward` must print `1` |
-| Works from your laptop, not from Home Assistant | The policy doesn't allow `tag:homeassistant` to that port, or the add-on isn't tagged | Check the `tags` option and the policy rules |
+| Works from your laptop, not from Home Assistant | The add-on isn't tagged, so the Home Assistant rule doesn't apply | Check the add-on's `tags` option matches the policy |
 | Linux laptop can't reach the stakes | Linux doesn't accept routes by default | `sudo tailscale set --accept-routes` |
 | ESPHome add-on shows a stake **Offline** but its logs work | The badge uses mDNS, which doesn't cross Tailscale | Harmless: installs and logs use `stake_ip` directly. To fix the badge, turn on ping-based status (see step 5) |
-| Wireless logs or installs fail but `curl` works | `stake_ip` in the add-on's file is wrong, or the policy doesn't allow 6053/3232 | Check `stake_ip` and the Home Assistant rule in the policy |
+| Wireless logs or installs fail but `curl` works | `stake_ip` in the add-on's file is wrong | Check `stake_ip` matches the stake's fixed IP in UniFi |
 | `tailscale up` says the tag isn't allowed | The tag isn't in `tagOwners` yet, or another user owns it | Save the policy from step 1 first, logged in as the tag owner |
 | The site dropped off after a few months | The Pi's key expired (it joined without a tag) | On site: `sudo tailscale up --force-reauth`, then disable key expiry |
 | Home network devices unreachable after adding the policy | The policy replaced the default allow-all | Keep the first rule (`you@example.com` → `*:*`), and add rules for anything else that used to work |
