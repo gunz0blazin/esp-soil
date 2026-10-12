@@ -10,7 +10,7 @@ scrape_configs:
     # The password lives in esp_web_password next to this file (gitignored),
     # mounted into the container by docker-compose.yml.
     basic_auth:
-      username: grow
+      username: esp
       password_file: /etc/prometheus/esp_web_password
     static_configs:
       # Breadboard test board (firmware/moisture-test.yaml)

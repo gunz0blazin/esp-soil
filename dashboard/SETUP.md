@@ -37,7 +37,7 @@ The firmware puts a username/password on each board's web page, and that login a
 
 1. In ESPHome's `secrets.yaml` (the HA add-on's config folder), add:
    ```yaml
-   web_username: "grow"
+   web_username: "esp"
    web_password: "your-long-password"
    ```
    Then flash/OTA each board.
@@ -48,11 +48,11 @@ The firmware puts a username/password on each board's web page, and that login a
    chmod 644 prometheus/esp_web_password   # Prometheus runs as user "nobody" inside the container
    docker compose up -d --force-recreate prometheus
    ```
-   The username in `prometheus/prometheus.yml` (`grow`) must match `web_username`.
+   The username in `prometheus/prometheus.yml` (`esp`) must match `web_username`.
 3. Check it:
    ```bash
    curl -s -o /dev/null -w '%{http_code}\n' http://<board-ip>/metrics              # 401 = login is on
-   curl -s -u grow:your-long-password http://<board-ip>/metrics | head             # metrics come back
+   curl -s -u esp:your-long-password http://<board-ip>/metrics | head             # metrics come back
    ```
    And `http://<server-ip>:9090/targets` should show every board **UP**. A **401** there means the password file doesn't match the board.
 

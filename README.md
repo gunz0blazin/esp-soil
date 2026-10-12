@@ -3,7 +3,7 @@
 > **This is the `testing` branch.** It holds changes that are written but not yet running on the stakes or the dashboard server. `main` matches what's deployed right now. To see exactly what's new here, compare the branches: [`main...testing`](../../compare/main...testing). Once a change is flashed and checked on real hardware, it gets merged into `main` with a pull request.
 >
 > **In testing now**
-> - **Board login:** the stake web page and `/metrics` require a username and password (`web_username` / `web_password` in `secrets.yaml`, HTTP basic auth). Prometheus logs in using a password file. Setup and checks are in [`dashboard/SETUP.md`](dashboard/SETUP.md#board-login-web-page--metrics).
+> - **Board login:** the stake web page and `/metrics` require a username and password (`web_username` / `web_password` in `secrets.yaml`, HTTP basic auth). Prometheus logs in using a password file. How it works, setup and checks: [Board login](#board-login-testing) below and [`dashboard/SETUP.md`](dashboard/SETUP.md#board-login-web-page--metrics).
 
 Wi-Fi soil moisture stakes. Each stake is a small board with an ESP32-C3, a capacitive soil probe and an AHT10 temperature/humidity sensor in a 3D printed case. Push it into the soil like a plant marker and plug in a USB cable. It reports soil moisture, temperature, humidity and VPD over Wi-Fi to ESPHome / Home Assistant and Prometheus, and the included Grafana stack graphs it.
 
@@ -11,7 +11,7 @@ Wi-Fi soil moisture stakes. Each stake is a small board with an ESP32-C3, a capa
 
 ![stake board in the case, KiCad 3D models](docs/images/kicad-3d.png)
 
-**Contents:** [What's in here](#whats-in-here) · [The stake](#the-stake) · [Setup](#setup) · [Calibrating](#calibrating) · [Data logging: Prometheus + Grafana](#data-logging-prometheus--grafana) ([Prometheus](#prometheus) · [Grafana](#grafana) · [Troubleshooting](#troubleshooting)) · [VPD](#vpd) · [Breadboard testing](#testing-on-a-breadboard)
+**Contents:** [What's in here](#whats-in-here) · [The stake](#the-stake) · [Setup](#setup) · [Calibrating](#calibrating) · [Data logging: Prometheus + Grafana](#data-logging-prometheus--grafana) ([Prometheus](#prometheus) · [Grafana](#grafana) · [Board login](#board-login-testing) · [Troubleshooting](#troubleshooting)) · [VPD](#vpd) · [Breadboard testing](#testing-on-a-breadboard)
 
 ---
 
@@ -130,7 +130,7 @@ The probe voltage goes **down** as the soil gets wetter. On the stake you're rea
 
 The stakes don't store any history themselves. A small Docker Compose stack in `dashboard/` does that:
 
-- **Prometheus** visits every stake every 15 seconds, reads its current values from `http://<stake>/metrics`, and keeps them in a time-series database for 2 years.
+- **Prometheus** visits every stake every 15 seconds, logs in, reads its current values from `http://<stake>/metrics`, and keeps them in a time-series database for 2 years.
 - **Grafana** reads from Prometheus and draws the dashboard: current values at the top, history graphs below.
 
 ![How readings flow from a stake to Prometheus to Grafana](docs/images/data-flow.png)
@@ -142,7 +142,8 @@ Prometheus *pulls* from the stakes. A stake never sends data anywhere on its own
 | File | What it does |
 |---|---|
 | `docker-compose.yml` | Runs Prometheus (port 9090) and Grafana (port 3000), with a named volume for each so data survives restarts and image updates |
-| `prometheus/prometheus.yml` | Scrape settings and the list of stakes to read |
+| `prometheus/prometheus.yml` | Scrape settings, the board login, and the list of stakes to read |
+| `prometheus/esp_web_password` | The board password Prometheus logs in with. You create it on the server; it's gitignored. `esp_web_password.example` shows the format |
 | `grafana/provisioning/datasources/prometheus.yml` | Connects Grafana to Prometheus automatically (no clicking through the UI) |
 | `grafana/provisioning/dashboards/dashboards.yml` | Tells Grafana to load every dashboard JSON in `grafana/dashboards/` |
 | `grafana/dashboards/*.json` | The dashboard itself |
@@ -154,6 +155,8 @@ Prometheus *pulls* from the stakes. A stake never sends data anywhere on its own
 cd dashboard
 nano docker-compose.yml          # set GF_SECURITY_ADMIN_PASSWORD (default is "changeme")
 nano prometheus/prometheus.yml   # one target per stake, see below
+printf '%s' 'your-long-password' > prometheus/esp_web_password   # same as web_password on the stakes
+chmod 644 prometheus/esp_web_password
 docker compose up -d
 ```
 
@@ -166,10 +169,10 @@ Any Linux machine, VM or container host on the same network as the stakes works.
 
 ### What a stake sends
 
-With `web_server:` and `prometheus:` in the firmware, each stake serves its sensor values as plain text at `/metrics`. You can open it in a browser or `curl` it:
+With `web_server:` and `prometheus:` in the firmware, each stake serves its sensor values as plain text at `/metrics`, behind the board login. You can open it in a browser (it asks for the username and password) or `curl` it with `-u`:
 
 ```text
-$ curl http://192.168.1.XXX/metrics
+$ curl -u esp:your-long-password http://192.168.1.XXX/metrics
 #TYPE esphome_sensor_value gauge
 #TYPE esphome_sensor_failed gauge
 esphome_sensor_value{id="probe_raw",name="Plant 1 raw",unit="V"} 1.455
@@ -207,6 +210,9 @@ global:
 scrape_configs:
   - job_name: esphome
     metrics_path: /metrics
+    basic_auth:                 # the board login, sent on every scrape
+      username: esp             # must match web_username on the stakes
+      password_file: /etc/prometheus/esp_web_password
     static_configs:
       - targets:
           - 192.168.1.XXX:80    # the stake's IP and web_server port
@@ -214,6 +220,7 @@ scrape_configs:
           board: soil-stake-1   # extra label so you can tell stakes apart
 ```
 
+- **`basic_auth`** applies to every stake in the job, so all stakes share one username and password. Stakes still on firmware without a login just ignore it.
 - **One `targets` block per stake.** The `board` label is added to every value from that stake, which makes queries and graphs easier to read.
 - **Give every stake a fixed IP** (a DHCP reservation in your router). Prometheus has no way to find a stake whose address changed.
 - **After editing the file**, apply it with `docker compose restart prometheus`. A restart doesn't lose any data.
@@ -224,9 +231,9 @@ Prometheus also adds two labels on its own: `job="esphome"` and `instance="<ip>:
 
 Open `http://<server-ip>:9090/targets` (**Status → Target health**). Every stake should be **UP**, with a recent "Last scrape" time.
 
-![Prometheus target health page with three stakes UP](docs/images/prometheus-targets.png)
+![Prometheus target health page: two stakes UP, one DOWN with 401 Unauthorized](docs/images/prometheus-targets.png)
 
-If a stake shows **DOWN**, the error under it says why. The usual causes are in [Troubleshooting](#troubleshooting).
+If a stake shows **DOWN**, the error under it says why. In the screenshot (sample data), stake 3 has a different password from the one Prometheus is sending, so it's rejected with **401 Unauthorized** while the other two log in fine. The usual causes are in [Troubleshooting](#troubleshooting).
 
 #### Querying
 
@@ -326,9 +333,53 @@ So as soon as Prometheus is reading a new stake, its moisture, temperature, humi
 
 More detail is in [`dashboard/SETUP.md`](dashboard/SETUP.md).
 
+### Board login (testing)
+
+Each stake's web page and `/metrics` sit behind one username and password, set in ESPHome's `secrets.yaml`:
+
+```yaml
+# secrets.yaml (next to the firmware, gitignored)
+web_username: "esp"
+web_password: "your-long-password"
+```
+
+```yaml
+# firmware/soil-stake.yaml
+web_server:
+  port: 80
+  auth:
+    username: !secret web_username
+    password: !secret web_password
+    type: basic
+```
+
+**How it works**
+
+- The login covers everything the web server serves: the live web page *and* `/metrics`. That's why Prometheus has to log in too.
+- Prometheus sends the username from `prometheus.yml` and reads the password from `prometheus/esp_web_password`, which `docker-compose.yml` mounts into the container. The password never goes in git.
+- Every stake uses the same login, because one scrape job sends one set of credentials.
+- **`type: basic` is required.** Prometheus only does basic auth. ESPHome currently defaults to basic, but the default switches to digest in ESPHome 2027.1, so the firmware sets it explicitly.
+
+**Rolling it out** (order matters)
+
+1. Add `web_username` / `web_password` to ESPHome's `secrets.yaml`.
+2. On the server, create `prometheus/esp_web_password` with the same password, `chmod 644` it, and run `docker compose up -d --force-recreate prometheus`. Create the file *before* the container starts: if it's missing, Docker creates a folder with that name and every scrape fails.
+3. OTA the stakes one at a time. Boards without a login ignore the credentials, so nothing breaks while some stakes are updated and some aren't.
+4. Check `http://<server-ip>:9090/targets`: every stake should be **UP**.
+
+**Checking a stake by hand**
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://<stake-ip>/metrics        # 401 = login is on
+curl -s -u esp:your-long-password http://<stake-ip>/metrics | head     # readings come back
+```
+
+**Changing the password:** update `web_password` and OTA every stake, then update `prometheus/esp_web_password` and restart Prometheus. Stakes show **401** in between, so do it in one sitting.
+
 ### Security notes
 
-- **The stakes have no login.** Anyone on your network can open a stake's web page or `/metrics` and see its readings.
+- **The stakes have a login,** but it's HTTP basic auth over plain HTTP. The password is only base64-encoded, so anyone who can capture traffic on your network could read it. It stops casual access to the web page and readings; keep the stakes on a network you trust (a separate VLAN for IoT devices is a good idea).
+- **Use a password that isn't used anywhere else,** since it's stored in plain text in `secrets.yaml` and `esp_web_password`.
 - **Change the Grafana admin password** in `docker-compose.yml` before the first start. It's `changeme` by default.
 - **Prometheus (9090) has no login.** Keep it on your local network.
 
@@ -336,7 +387,8 @@ More detail is in [`dashboard/SETUP.md`](dashboard/SETUP.md).
 
 | Task | How |
 |---|---|
-| Add a stake | Add a `targets` block to `prometheus/prometheus.yml`, then `docker compose restart prometheus` |
+| Add a stake | Flash it with the same `web_username` / `web_password`, add a `targets` block to `prometheus/prometheus.yml`, then `docker compose restart prometheus` |
+| Change the board password | See [Board login](#board-login-testing) |
 | Remove a stake | Delete its block and restart Prometheus. Its old history stays until it ages out |
 | Update Prometheus and Grafana | `docker compose pull && docker compose up -d`. Both images use the `latest` tag; pin a version in `docker-compose.yml` if you'd rather update on your own schedule |
 | Back up the history | Stop Prometheus (`docker compose stop prometheus`), copy the `prometheus-data` volume (on most installs it's named `dashboard_prometheus-data`), then start it again |
@@ -349,6 +401,9 @@ Don't run `docker compose down -v` unless you mean it: `-v` deletes both volumes
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Target **DOWN**, "connection refused" or timeout | Stake is off, on a different IP, or not on Wi-Fi | Check the stake's IP in your router and open `http://<ip>/metrics` from the server |
+| Target **DOWN**, "401 Unauthorized" | The stake's password or username doesn't match what Prometheus sends | Compare `web_username` / `web_password` with `prometheus.yml` and `esp_web_password` (no trailing newline; `printf '%s'` avoids one) |
+| Every target **DOWN** with an error about the password file | `esp_web_password` didn't exist when the container started, so Docker made a folder | `docker compose down`, delete the folder, create the file, `docker compose up -d` |
+| Browser asks for a login on the stake's page | Expected on this branch | Use `web_username` / `web_password` |
 | Target **DOWN**, "404 Not Found" | Firmware is missing `prometheus:` | Add `web_server:` and `prometheus:` to the YAML and reflash |
 | Target **UP** but the stake isn't on the dashboard | Sensor names don't contain `moisture`, `temperature`, `humidity`, `vpd` or `raw` | Check the names at `/metrics` |
 | Whole dashboard says "No data" | Grafana can't reach Prometheus | Both containers must be in the same Compose stack; check **Connections → Data sources → Prometheus → Test** |
