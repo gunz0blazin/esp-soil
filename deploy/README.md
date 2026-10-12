@@ -184,18 +184,19 @@ Everything secret lives in `/etc/esp-soil/` and never goes in git:
 | `deploy.env` | Which repo and branch to deploy (`BRANCH=`, the branch you cloned) | Created by bootstrap |
 | `targets/*.yml` | This box's own list of stakes, replacing the repo's (test boxes only; see [Testing the pipeline on a spare Pi](#testing-the-pipeline-on-a-spare-pi)) | No |
 
-To change one, edit the file (`sudo nano /etc/esp-soil/esp_web_password`, no trailing newline needed) and run `sudo esp-soil-deploy --force`.
+To change one, edit the file (`sudo nano /etc/esp-soil/esp_web_password`, no trailing newline needed) and run `sudo esp-soil-deploy`.
 
 **Grafana's password** is only applied when Grafana starts with an empty database. After that, change it in Grafana (profile → change password) and update the file to match, so a rebuild uses the same one.
 
-**Notifications:** install the ntfy app on your phone and subscribe to the same topic. Anyone who knows a public topic name can read it, so use a long random name, or a protected topic with `ntfy_token`. You get one notification per deploy:
+**Notifications:** install the ntfy app on your phone and subscribe to the same topic. Anyone who knows a public topic name can read it, so use a long random name, or a protected topic with `ntfy_token`. The 5-minute runs are silent unless something happens:
 
-- ✅ **ESP-Soil deployed**: the commit, and how many stakes Prometheus can reach (with the names of any that are down)
-- ❌ **ESP-Soil deploy FAILED** (high priority): the commit and the step that failed
+- ✅ **ESP-Soil deployed**: a run that changed something. The commit, and how many stakes Prometheus can reach (with the names of any that are down)
+- ❌ **ESP-Soil deploy FAILED** (high priority): the commit and the step that failed. Sent once per failing commit; the timer keeps retrying quietly
+- ✅ **ESP-Soil deploy working again**: the first good run after a failure
 
 ### How the deploy works
 
-`esp-soil-deploy` runs `ansible-pull`: it pulls `main` into `/opt/esp-soil/src` and, **only if there are new commits**, runs [`site.yml`](site.yml). The playbook:
+`esp-soil-deploy` runs `ansible-pull`: it pulls `main` into `/opt/esp-soil/src` and runs [`site.yml`](site.yml), **every 5 minutes, whether or not there are new commits**. With nothing new the playbook changes nothing, restarts nothing and sends no notification; a deploy that failed is simply tried again on the next run. The playbook:
 
 1. Checks the secrets exist.
 2. **Validates before touching anything live**: runs `promtool` on the new Prometheus config and checks the compose file. If either fails, the running stack is left exactly as it was.
@@ -214,8 +215,8 @@ To change one, edit the file (`sudo nano /etc/esp-soil/esp_web_password`, no tra
 ### Useful commands on the Pi
 
 ```bash
-sudo esp-soil-deploy --force                  # deploy now, showing every step's output
-sudo esp-soil-deploy --force -vv              # even more detail; --quiet for task names only
+sudo esp-soil-deploy                          # deploy now, showing every step's output
+sudo esp-soil-deploy -vv                      # even more detail; --quiet for task names only
 systemctl list-timers esp-soil-deploy.timer   # when it last ran / runs next
 journalctl -u esp-soil-deploy -n 100          # output of recent deploys
 cd /opt/esp-soil/dashboard && sudo docker compose -p esp-soil ps     # container status
@@ -242,7 +243,7 @@ sudo /tmp/esp-soil/deploy/bootstrap.sh
 
 It prints `This Pi will deploy branch: testing`, and from then on that Pi deploys every push to `testing` within 5 minutes. That's a full rehearsal of the site setup before anything reaches `main`. Keep the site Pi on `main` (clone `main`, or the default branch).
 
-To move a Pi to another branch later, either rerun the bootstrap from a clone of that branch, set it explicitly with `sudo BRANCH=main /tmp/esp-soil/deploy/bootstrap.sh`, or edit `BRANCH=` in `/etc/esp-soil/deploy.env` and run `sudo esp-soil-deploy --force`.
+To move a Pi to another branch later, either rerun the bootstrap from a clone of that branch, set it explicitly with `sudo BRANCH=main /tmp/esp-soil/deploy/bootstrap.sh`, or edit `BRANCH=` in `/etc/esp-soil/deploy.env` and run `sudo esp-soil-deploy`.
 
 **A test probe at home.** Because it's cloned from `testing`, the bootstrap asks for a **test probe IP**. Enter your home probe's address and the test box watches **only** that probe; the site stakes in the repo's list are ignored on this box, so nothing shows as down. Press Enter to skip and watch the repo's list instead.
 
@@ -252,7 +253,7 @@ To move a Pi to another branch later, either rerun the bootstrap from a clone of
     labels: {board: test-probe}
   ```
 - Edit that file to change the IP or add more probes (same format). Prometheus picks it up within a minute, no deploy needed.
-- If you add the folder later on a box that didn't have one, run `sudo esp-soil-deploy --force` once so Prometheus switches to it.
+- If you add the folder later on a box that didn't have one, run `sudo esp-soil-deploy` once so Prometheus switches to it.
 - A box deploying `main` uses the repo's list. If it finds a local list there, the bootstrap warns you.
 - For firmware: give the test probe's file in the ESPHome add-on `ref: testing`, so it runs the firmware from `testing` while the site stakes stay on `main`.
 
@@ -379,7 +380,7 @@ If the canary doesn't come back, stop there. ESPHome's safe mode usually lets yo
 ### Changing the stakes' web password
 
 1. Change `web_password` in the add-on's secrets and install on every stake.
-2. Put the same password in `/etc/esp-soil/esp_web_password` on the Pi and run `sudo esp-soil-deploy --force`.
+2. Put the same password in `/etc/esp-soil/esp_web_password` on the Pi and run `sudo esp-soil-deploy`.
 
 Stakes show **DOWN (401)** in Prometheus between steps 1 and 2, so do both in one sitting.
 
@@ -396,8 +397,8 @@ Stakes show **DOWN (401)** in Prometheus between steps 1 and 2, so do both in on
 |---|---|---|
 | No deploy notification after a merge | Notifications not set up, timer not running, or the deploy failed before notifying | `systemctl list-timers esp-soil-deploy.timer` and `journalctl -u esp-soil-deploy -n 100` |
 | "deploy FAILED at: Validate Prometheus config" | The new `prometheus.yml` or targets file is invalid. The running stack is unchanged | Fix it on `testing`; the checks would have caught it if they're required on `main` |
-| "deploy FAILED at: Stop if a secret is missing" | A file in `/etc/esp-soil/` is missing | Recreate it, then `sudo esp-soil-deploy --force` |
-| Failed deploy, then nothing happens | The timer only deploys new commits | Fix and merge, or run `sudo esp-soil-deploy --force` |
+| "deploy FAILED at: Stop if a secret is missing" | A file in `/etc/esp-soil/` is missing | Recreate it, then `sudo esp-soil-deploy` |
+| "deploy FAILED", then no more messages | Failures are notified once per commit; the timer keeps retrying quietly | Fix and merge (or fix the box), then wait 5 minutes or run `sudo esp-soil-deploy`. A "working again" message confirms it |
 | Notification says stakes are down | Stake off, out of Wi-Fi range, or flashed with a different `stake_ip` or gateway | Check the stake's file in the add-on; open `http://<stake-ip>/` from the Pi |
 | Stakes **DOWN (401)** | Password on the stakes and on the Pi don't match | [Changing the stakes' web password](#changing-the-stakes-web-password) |
 | Add-on shows the stake **Offline**, but Prometheus has it UP | Usually just the badge: it uses mDNS, which doesn't cross Tailscale. If wireless logs also fail, Home Assistant can't reach the route | See [TAILSCALE.md, step 5](TAILSCALE.md#5-check-it-works) and its troubleshooting |

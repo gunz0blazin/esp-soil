@@ -6,7 +6,11 @@
 #   3. syncs dashboard/ from the repo checkout into /opt/esp-soil/dashboard
 #   4. docker compose up, restarting Prometheus/Grafana only if their config changed
 #   5. waits until both are healthy and counts how many stakes are UP
-#   6. sends a notification (optional) for success or failure
+#   6. sends a notification (optional) when something changed, or when it fails
+#
+# The timer runs this every 5 minutes whether or not the branch has new commits.
+# It's idempotent: with nothing new it changes nothing, restarts nothing and stays
+# quiet, and a deploy that failed is simply tried again on the next run.
 #
 # It never touches the stakes. Firmware is flashed from the ESPHome add-on.
 
@@ -26,6 +30,8 @@
     grafana_url: http://127.0.0.1:3000
     # When false (CI), skip installing the wrapper/systemd units onto the machine.
     manage_host: true
+    # Commit of the last failed deploy, so a failure is notified once, not every 5 minutes.
+    failed_marker: /var/lib/esp-soil/last_failed_commit
 
   tasks:
     - name: Deploy
@@ -116,11 +122,12 @@
           changed_when: false
 
         # ---- apply ----
-        - name: Create deploy folder
+        - name: Create deploy folders
           ansible.builtin.file:
-            path: "{{ deploy_dir }}"
+            path: "{{ item }}"
             state: directory
             mode: "0755"
+          loop: ["{{ deploy_dir }}", "{{ failed_marker | dirname }}"]
 
         - name: Sync dashboard/ into the deploy folder
           ansible.builtin.command: >-
@@ -145,6 +152,7 @@
               TARGETS_DIR={{ targets_dir }}
             dest: "{{ deploy_dir }}/.env"
             mode: "0600"
+          register: env_file
           no_log: true
 
         - name: Start or update the stack
@@ -233,16 +241,54 @@
             daemon_reload: true
           when: manage_host | bool and units is changed
 
+        - name: Check whether the last deploy had failed
+          ansible.builtin.stat:
+            path: "{{ failed_marker }}"
+          register: had_failed
+
+        - name: Clear the failed-deploy marker
+          ansible.builtin.file:
+            path: "{{ failed_marker }}"
+            state: absent
+
+        - name: Did this run change anything?
+          ansible.builtin.set_fact:
+            deploy_changed: >-
+              {{ sync is changed or web_pw is changed or env_file is changed or up is changed
+                 or units is changed }}
+
+        - name: Report changes
+          ansible.builtin.debug:
+            msg: >-
+              {{ 'Changes applied.' if deploy_changed | bool else 'Nothing new: already up to date, nothing restarted.' }}
+
+        # Quiet when nothing changed, so the 5-minute runs don't spam the phone.
         - name: Notify success
+          when: deploy_changed | bool or had_failed.stat.exists
           ansible.builtin.include_tasks: notify.yml
           vars:
-            notify_title: "ESP-Soil deployed"
+            notify_title: "{{ 'ESP-Soil deployed' if deploy_changed | bool else 'ESP-Soil deploy working again' }}"
             notify_tags: white_check_mark
             notify_priority: default
             notify_body: "{{ commit.stdout }}\nStakes up: {{ stakes_up }}/{{ stakes_total }}{{ ('\nDown: ' ~ (stakes_down | join(', '))) if stakes_down | length else '' }}"
 
       rescue:
+        - name: Read the last failed commit
+          ansible.builtin.slurp:
+            src: "{{ failed_marker }}"
+          register: last_failed
+          failed_when: false
+
+        - name: Remember this failure
+          ansible.builtin.copy:
+            content: "{{ commit.stdout | default('unknown') }}"
+            dest: "{{ failed_marker }}"
+            mode: "0644"
+          failed_when: false
+
+        # Once per failing commit; the next runs retry quietly until it works.
         - name: Notify failure
+          when: (last_failed.content | default('') | b64decode) != (commit.stdout | default('unknown'))
           ansible.builtin.include_tasks: notify.yml
           vars:
             notify_title: "ESP-Soil deploy FAILED"

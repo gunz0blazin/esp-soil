@@ -1,7 +1,9 @@
 #!/bin/sh
 # Pull the repo and run deploy/site.yml with ansible-pull.
-#   esp-soil-deploy           deploy only if the branch has new commits (what the timer runs)
-#   esp-soil-deploy --force   deploy even if nothing changed (after fixing a failed deploy, or a secret)
+#   esp-soil-deploy           pull the branch and run the deploy (what the timer runs every
+#                             5 minutes). Always runs: with nothing new it changes nothing,
+#                             and a failed deploy is retried on the next run by itself.
+#   --force                   same thing; still accepted from before deploys always ran
 #   add -vv or -vvv for more detail, --quiet for task names only
 # Settings: /etc/esp-soil/deploy.env (REPO_URL, BRANCH). Installed by bootstrap.sh and
 # kept up to date by every deploy.
@@ -17,11 +19,10 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-ONLY_IF_CHANGED=--only-if-changed
 VERBOSE=-v
 for arg in "$@"; do
   case "$arg" in
-    --force) ONLY_IF_CHANGED= ;;
+    --force) ;;
     -v*)     VERBOSE=$arg ;;          # -vv / -vvv for even more detail
     --quiet) VERBOSE= ;;
     *) echo "Usage: esp-soil-deploy [--force] [-vv|-vvv|--quiet]" >&2; exit 1 ;;
@@ -42,4 +43,4 @@ fi
 # --limit localhost: otherwise ansible-pull also looks for this machine's hostname
 # in the inventory and warns that it can't find it.
 ansible-pull --url "$REPO_URL" --checkout "$BRANCH" --directory "$CHECKOUT" \
-  --clean --inventory localhost, --limit localhost $VERBOSE $ONLY_IF_CHANGED deploy/site.yml
+  --clean --inventory localhost, --limit localhost $VERBOSE deploy/site.yml

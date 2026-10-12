@@ -188,7 +188,7 @@ GRAFANA_ADMIN_PASSWORD=pull-only docker compose --progress plain \
   -f "$HERE/../dashboard/docker-compose.yml" pull
 
 echo "==> First deploy"
-/usr/local/bin/esp-soil-deploy --force
+/usr/local/bin/esp-soil-deploy
 systemctl start esp-soil-deploy.timer
 
 # ---- static site address for the Pi (main only) ----
