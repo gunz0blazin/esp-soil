@@ -44,7 +44,7 @@ jobs:
         run: |
           for f in firmware/stakes/soil-stake-*.yaml; do
             echo "::group::$f"
-            esphome config "$f" > /dev/null
+            ci/run.sh "esphome config $f" esphome config "$f" > /dev/null
             echo "::endgroup::"
             echo "ok  $f"
           done
@@ -52,11 +52,11 @@ jobs:
       - name: Validate the Home Assistant stub against this commit's common.yaml
         run: |
           python ci/stub_to_local.py firmware/ha-stub.example.yaml firmware/stakes/ci-ha-stub.yaml
-          esphome config firmware/stakes/ci-ha-stub.yaml > /dev/null
+          ci/run.sh "esphome config ha-stub" esphome config firmware/stakes/ci-ha-stub.yaml > /dev/null
           echo "ok  ha-stub.example.yaml"
 
       - name: Validate breadboard test firmware
-        run: esphome config firmware/moisture-test.yaml > /dev/null
+        run: ci/run.sh "esphome config moisture-test" esphome config firmware/moisture-test.yaml > /dev/null
 
       - name: Cache build tools
         uses: actions/cache@v6
@@ -69,7 +69,7 @@ jobs:
 
       # All stakes share common.yaml, so compiling one proves the firmware builds.
       - name: Compile soil-stake-1
-        run: esphome compile firmware/stakes/soil-stake-1.yaml
+        run: ci/run.sh "esphome compile" esphome compile firmware/stakes/soil-stake-1.yaml
 
   dashboard:
     name: Dashboard (Prometheus + Grafana)
@@ -86,24 +86,24 @@ jobs:
       - name: Pinned images exist and have ARM64 builds (for the Pi)
         run: |
           for img in "${{ steps.images.outputs.prometheus }}" "${{ steps.images.outputs.grafana }}"; do
-            docker manifest inspect "$img" > manifest.json
-            python3 -c "import json,sys; m=json.load(open('manifest.json')); p={f\"{x['platform']['os']}/{x['platform']['architecture']}\" for x in m.get('manifests',[]) if 'platform' in x}; print(sys.argv[1], sorted(p)); sys.exit(0 if 'linux/arm64' in p else 1)" "$img"
+            ci/run.sh "manifest $img" docker manifest inspect "$img" > manifest.json
+            python3 -c "import json,sys; m=json.load(open('manifest.json')); p={f\"{x['platform']['os']}/{x['platform']['architecture']}\" for x in m.get('manifests',[]) if 'platform' in x}; print(sys.argv[1], sorted(p)); ok='linux/arm64' in p; ok or print(f'::error title=No ARM64 image::{sys.argv[1]} only has {sorted(p)}'); sys.exit(0 if ok else 1)" "$img"
           done
 
       - name: Prometheus config (promtool)
         run: |
           printf 'ci-password' > dashboard/prometheus/esp_web_password
-          docker run --rm --entrypoint promtool \
+          ci/run.sh promtool docker run --rm --entrypoint promtool \
             -v "$PWD/dashboard/prometheus:/etc/prometheus:ro" \
             "${{ steps.images.outputs.prometheus }}" check config /etc/prometheus/prometheus.yml
 
       - name: Compose file
-        run: GRAFANA_ADMIN_PASSWORD=ci docker compose -f dashboard/docker-compose.yml config --quiet
+        run: GRAFANA_ADMIN_PASSWORD=ci ci/run.sh "compose config" docker compose -f dashboard/docker-compose.yml config --quiet
 
       - name: Targets and dashboard files
         run: |
           pip install pyyaml
-          python3 ci/check_dashboard.py dashboard
+          ci/run.sh "dashboard files" python3 ci/check_dashboard.py dashboard
 
   deploy:
     name: Deploy playbook (dry run on the runner)
@@ -136,7 +136,7 @@ jobs:
       # Runs the real playbook against this runner: validate, sync, compose up,
       # health checks. Stakes aren't reachable from here, so they'll show as down.
       - name: Deploy (first run)
-        run: sudo env "PATH=$PATH" ANSIBLE_LOCALHOST_WARNING=false ansible-playbook -i localhost, deploy/site.yml -e manage_host=false
+        run: ci/run.sh "deploy first run" sudo env "PATH=$PATH" ANSIBLE_LOCALHOST_WARNING=false ANSIBLE_NOCOLOR=1 ansible-playbook -i localhost, deploy/site.yml -e manage_host=false
 
       - name: Deploy again (should change nothing)
         run: |
