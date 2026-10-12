@@ -2,6 +2,16 @@
 
 Fits the 24 x 52 mm ESP-Soil stake PCB + DFRobot SEN0193. Outer size is 28.4 x 89.1 x 17.3 mm with the lid on. No screws.
 
+<!-- toc -->
+**Contents**
+
+- [How it closes](#how-it-closes)
+- [Printing](#printing)
+- [Assembly](#assembly)
+- [Tuning](#tuning)
+- [Fit checks](#fit-checks)
+<!-- /toc -->
+
 ![case preview](../../docs/images/case-preview.png)
 
 ## How it closes

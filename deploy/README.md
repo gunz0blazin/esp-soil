@@ -2,7 +2,35 @@
 
 How changes get from this repo to a running site: a Raspberry Pi that runs Prometheus and Grafana, plus the soil stakes. The Pi can be on a network you don't control; everything it does is an outbound connection.
 
-**Contents:** [How a change gets deployed](#how-a-change-gets-deployed) · [1. Set up the Pi](#1-set-up-the-pi) · [2. Tailscale](#2-tailscale-reach-the-site-from-home) ([full guide](TAILSCALE.md)) · [3. ESPHome in Home Assistant](#3-esphome-in-home-assistant) · [4. Day to day](#4-day-to-day) · [Troubleshooting](#troubleshooting)
+<!-- toc -->
+**Contents**
+
+- [How a change gets deployed](#how-a-change-gets-deployed)
+  - [What the GitHub checks cover](#what-the-github-checks-cover)
+- [Going live, step by step](#going-live-step-by-step)
+- [1. Set up the Pi](#1-set-up-the-pi)
+  - [Hardware and OS](#hardware-and-os)
+  - [Run the bootstrap](#run-the-bootstrap)
+  - [Secrets on the Pi](#secrets-on-the-pi)
+  - [How the deploy works](#how-the-deploy-works)
+  - [Useful commands on the Pi](#useful-commands-on-the-pi)
+  - [Running on a container or VM](#running-on-a-container-or-vm)
+  - [Testing the pipeline on a spare Pi](#testing-the-pipeline-on-a-spare-pi)
+- [2. Tailscale: reach the site from home](#2-tailscale-reach-the-site-from-home)
+  - [Pick the stakes' subnet](#pick-the-stakes-subnet)
+  - [Setting it up](#setting-it-up)
+- [3. ESPHome in Home Assistant](#3-esphome-in-home-assistant)
+  - [secrets.yaml in the add-on](#secretsyaml-in-the-add-on)
+  - [One file per stake](#one-file-per-stake)
+  - [First flash (USB, before the stakes go to the site)](#first-flash-usb-before-the-stakes-go-to-the-site)
+- [4. Day to day](#4-day-to-day)
+  - [Making a change](#making-a-change)
+  - [Flashing firmware](#flashing-firmware)
+  - [Adding a stake](#adding-a-stake)
+  - [Changing the stakes' web password](#changing-the-stakes-web-password)
+  - [Rolling back](#rolling-back)
+- [Troubleshooting](#troubleshooting)
+<!-- /toc -->
 
 ---
 
@@ -37,6 +65,38 @@ How changes get from this repo to a running site: a Raspberry Pi that runs Prome
 | Firmware | Every stake file and the Home Assistant stub validate with ESPHome (pinned version), and the firmware compiles |
 | Dashboard | Prometheus config passes `promtool`; compose file is valid; the targets file is well formed with no duplicate stakes; the pinned images exist and have ARM64 builds for the Pi |
 | Deploy | The playbook runs end to end on the runner (validate, sync, start the stack, health checks), and a second run changes nothing; Grafana loads the dashboard; Prometheus finds every stake in the targets file |
+
+---
+
+## Going live, step by step
+
+The whole first deployment in order. Each step links to its details below.
+
+**At home**
+
+1. **Merge `testing` into `main`** with a pull request, using **Create a merge commit**. The site Pi deploys `main`. See [Making a change](#making-a-change).
+2. **Set up the Pi.** Raspberry Pi OS Lite 64-bit, then the bootstrap from a clone of `main`. It isn't on the site network yet, so tell it which subnet the stakes will be on:
+   ```bash
+   git clone https://github.com/gunz0blazin/esp-soil.git /tmp/esp-soil
+   sudo TS_ROUTES=10.42.0.0/24 /tmp/esp-soil/deploy/bootstrap.sh
+   ```
+   Open the Tailscale login link it prints. Details: [1. Set up the Pi](#1-set-up-the-pi).
+3. **Tailscale admin console:** approve the Pi's route and **disable its key expiry**. See [TAILSCALE.md, step 2](TAILSCALE.md#2-admin-console).
+4. **Home Assistant:** in the Tailscale add-on, set **userspace networking off** and `accept_routes` on ([TAILSCALE.md, step 3](TAILSCALE.md#3-home-assistant)). In the ESPHome add-on, add the secrets, using the **site VLAN's** Wi-Fi name and password, and create the five stake files from the stub ([3. ESPHome in Home Assistant](#3-esphome-in-home-assistant)).
+5. **Flash every stake by USB.** They can't join Wi-Fi at home, which is expected: they're set up for the site's network. Label them 1–5. You can note each one's `dry_v` (probe in air) now. See [First flash](#first-flash-usb-before-the-stakes-go-to-the-site).
+
+**On site**
+
+6. **Router:** create the stakes' VLAN with its own 2.4 GHz WPA2 SSID. No port forwards or allow rules needed. See [Pick the stakes' subnet](#pick-the-stakes-subnet).
+7. **Plug in the Pi** on the VLAN, give it its fixed IP (`.10`) in the router, and power-cycle it. Check Grafana opens over Tailscale from your phone (`http://esp-soil-pi:3000`).
+8. **Bring the stakes up one at a time:** power it, set its fixed IP (`.11`–`.15`) when it appears in the router's client list, power-cycle it, then watch it go **UP** at `http://esp-soil-pi:9090/targets` and appear in Grafana.
+
+**After that (from anywhere)**
+
+9. **Add each stake to Home Assistant** by IP with the `api_key`. See [First flash](#first-flash-usb-before-the-stakes-go-to-the-site), step 3.
+10. **Calibrate `wet_v`** 30 minutes after a full watering, put both values in each stake's file in the add-on, and install **wirelessly**. That's the first real test of remote updates through the Pi. See [Calibrating](../README.md#calibrating).
+
+From then on, every change goes `testing` → pull request → `main`: the Pi deploys dashboard changes on its own, and you flash firmware from the add-on ([Flashing firmware](#flashing-firmware)).
 
 ---
 

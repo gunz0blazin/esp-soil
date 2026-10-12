@@ -2,6 +2,15 @@
 
 Prometheus reads every stake's `/metrics` every 15 s and keeps 2 years of history. Grafana draws the graphs.
 
+<!-- toc -->
+**Contents**
+
+- [1. Stakes](#1-stakes)
+- [2. Start the stack](#2-start-the-stack)
+- [3. Phone](#3-phone)
+- [Changes](#changes)
+<!-- /toc -->
+
 **On the site's Raspberry Pi you don't need this page.** The Pi deploys this folder automatically from `main`; see [`deploy/README.md`](../deploy/README.md). Use this page to run the same stack by hand on any Linux machine with Docker, for example to try a change before opening a pull request.
 
 ## 1. Stakes

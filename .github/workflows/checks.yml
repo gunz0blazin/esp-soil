@@ -105,6 +105,9 @@ jobs:
           pip install pyyaml
           ci/run.sh "dashboard files" python3 ci/check_dashboard.py dashboard
 
+      - name: Doc indexes are up to date
+        run: ci/run.sh "doc indexes" python3 ci/toc.py --check $(git ls-files '*.md')
+
   deploy:
     name: Deploy playbook (dry run on the runner)
     runs-on: ubuntu-latest

@@ -2,6 +2,20 @@
 
 The full stake board as a KiCad project: schematic, PCB, footprints, 3D models for every part, and the snap-fit case loaded into the 3D viewer, so you can check the fit before ordering anything.
 
+<!-- toc -->
+**Contents**
+
+- [Opening it](#opening-it)
+- [Running the checks in KiCad](#running-the-checks-in-kicad)
+- [Gerbers](#gerbers)
+- [Parts](#parts)
+- [Reading the board](#reading-the-board)
+- [What's been checked](#whats-been-checked)
+- [Measure these before ordering](#measure-these-before-ordering)
+- [Regenerating](#regenerating)
+- [Credits](#credits)
+<!-- /toc -->
+
 ![3D preview](source/render-3d.png)
 
 ## Opening it

@@ -15,7 +15,34 @@ Wi-Fi soil moisture stakes. Each stake is a small board with an ESP32-C3, a capa
 
 ![stake board in the case, KiCad 3D models](docs/images/kicad-3d.png)
 
-**Contents:** [What's in here](#whats-in-here) · [The stake](#the-stake) · [Setup](#setup) · [Calibrating](#calibrating) · [Data logging: Prometheus + Grafana](#data-logging-prometheus--grafana) ([Prometheus](#prometheus) · [Grafana](#grafana) · [Board login](#board-login-testing) · [Troubleshooting](#troubleshooting)) · [Deployment](#deployment) · [VPD](#vpd) · [Breadboard testing](#testing-on-a-breadboard)
+<!-- toc -->
+**Contents**
+
+- [What's in here](#whats-in-here)
+- [The stake](#the-stake)
+  - [Parts (per stake)](#parts-per-stake)
+  - [Pins](#pins)
+  - [Case](#case)
+  - [Power](#power)
+- [Setup](#setup)
+- [Calibrating](#calibrating)
+  - [Keeping readings honest](#keeping-readings-honest)
+- [Data logging: Prometheus + Grafana](#data-logging-prometheus--grafana)
+  - [What's in dashboard/](#whats-in-dashboard)
+  - [Quick start](#quick-start)
+  - [What a stake sends](#what-a-stake-sends)
+  - [Prometheus](#prometheus)
+  - [Grafana](#grafana)
+  - [Viewing on a phone or remotely](#viewing-on-a-phone-or-remotely)
+  - [Board login (testing)](#board-login-testing)
+  - [Security notes](#security-notes)
+  - [Maintenance](#maintenance)
+  - [Troubleshooting](#troubleshooting)
+- [Deployment](#deployment)
+- [VPD](#vpd)
+- [Testing on a breadboard](#testing-on-a-breadboard)
+- [License](#license)
+<!-- /toc -->
 
 ---
 

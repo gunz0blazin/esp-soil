@@ -14,7 +14,16 @@ Tailscale connects the site to your tailnet without opening any ports. The Pi jo
 
 This uses Tailscale's **default, open policy**: every device on your tailnet can reach every other one, with no access rules to write. The examples use the subnet `10.42.0.0/24`; swap in your own.
 
-**Contents:** [1. Pi](#1-the-pi-subnet-router) · [2. Admin console](#2-admin-console) · [3. Home Assistant](#3-home-assistant) · [4. Phone and laptop](#4-your-phone-and-laptop) · [5. Check it works](#5-check-it-works) · [Troubleshooting](#troubleshooting)
+<!-- toc -->
+**Contents**
+
+- [1. The Pi (subnet router)](#1-the-pi-subnet-router)
+- [2. Admin console](#2-admin-console)
+- [3. Home Assistant](#3-home-assistant)
+- [4. Your phone and laptop](#4-your-phone-and-laptop)
+- [5. Check it works](#5-check-it-works)
+- [Troubleshooting](#troubleshooting)
+<!-- /toc -->
 
 ---
 
