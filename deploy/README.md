@@ -74,13 +74,14 @@ Then it:
 4. Runs the first deploy. Pulling the images takes a few minutes the first time.
 5. Sets up **Tailscale** as a subnet router for the site VLAN: installs it, turns on IP forwarding, and shares the subnet the Pi is on (e.g. `10.42.0.0/24`) under the name `esp-soil-pi`. It prints a login link; open it and log in. At the end it reminds you of the two clicks left in the Tailscale admin console: approve the route, and disable key expiry. Details: [`TAILSCALE.md`](TAILSCALE.md).
 
-Options for the Tailscale step:
+Options:
 
 | To | Run |
 |---|---|
 | Skip it | `sudo deploy/bootstrap.sh --no-tailscale` |
 | Share a different subnet | `sudo TS_ROUTES=10.50.0.0/24 deploy/bootstrap.sh` |
 | Use another tailnet name | `sudo TS_HOSTNAME=soil-site-pi deploy/bootstrap.sh` |
+| Deploy a branch other than the one you cloned | `sudo BRANCH=testing deploy/bootstrap.sh` |
 | Log in without a browser | `sudo TS_AUTHKEY=tskey-... deploy/bootstrap.sh` (an auth key from the admin console) |
 
 When it finishes, Grafana is at `http://<pi-ip>:3000` (user `admin`) with the **Soil Monitor** dashboard as the home page. Running the bootstrap again is safe: it skips what's done and never overwrites a secret.
@@ -95,7 +96,7 @@ Everything secret lives in `/etc/esp-soil/` and never goes in git:
 | `grafana_admin_password` | Grafana's admin password on first start | Yes |
 | `ntfy_url` | Deploy notifications (full topic URL) | No |
 | `ntfy_token` | Access token, if your ntfy topic is protected | No |
-| `deploy.env` | Which repo and branch to deploy (`BRANCH=main`) | Created by bootstrap |
+| `deploy.env` | Which repo and branch to deploy (`BRANCH=`, the branch you cloned) | Created by bootstrap |
 
 To change one, edit the file (`sudo nano /etc/esp-soil/esp_web_password`, no trailing newline needed) and run `sudo esp-soil-deploy --force`.
 
@@ -134,7 +135,18 @@ cd /opt/esp-soil/dashboard && sudo docker compose -p esp-soil ps     # container
 cd /opt/esp-soil/dashboard && sudo docker compose -p esp-soil logs -f prometheus
 ```
 
-To try a branch on a spare Pi before merging, set `BRANCH=testing` in its `/etc/esp-soil/deploy.env`. Keep the site Pi on `main`.
+### Testing the pipeline on a spare Pi
+
+The bootstrap deploys **the branch you cloned**, so a test Pi just needs a clone of `testing`:
+
+```bash
+git clone -b testing https://github.com/gunz0blazin/esp-soil.git /tmp/esp-soil
+sudo /tmp/esp-soil/deploy/bootstrap.sh
+```
+
+It prints `This Pi will deploy branch: testing`, and from then on that Pi deploys every push to `testing` within 5 minutes. That's a full rehearsal of the site setup before anything reaches `main`. Keep the site Pi on `main` (clone `main`, or the default branch).
+
+To move a Pi to another branch later, either rerun the bootstrap from a clone of that branch, set it explicitly with `sudo BRANCH=main /tmp/esp-soil/deploy/bootstrap.sh`, or edit `BRANCH=` in `/etc/esp-soil/deploy.env` and run `sudo esp-soil-deploy --force`.
 
 ---
 

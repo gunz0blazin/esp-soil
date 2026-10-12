@@ -12,6 +12,8 @@
 # Options:
 #   --no-tailscale           skip the Tailscale step
 # Environment (all optional):
+#   BRANCH=testing           branch this Pi deploys; default: the branch this copy was
+#                            cloned from (clone -b testing to test the pipeline itself)
 #   TS_ROUTES=10.42.0.0/24   subnet to share; default: the subnet of the Pi's main interface
 #   TS_HOSTNAME=esp-soil-pi  the Pi's name on the tailnet; default: esp-soil-pi
 #   TS_AUTHKEY=tskey-...     log in with an auth key instead of opening the printed link
@@ -31,6 +33,14 @@ fi
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 SECRETS=/etc/esp-soil
+
+# Deploy the branch this copy was cloned from, unless BRANCH says otherwise.
+# safe.directory: the clone belongs to your user, but this runs as root.
+if [ -z "${BRANCH:-}" ]; then
+  BRANCH=$(git -c safe.directory='*' -C "$HERE" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+  case "$BRANCH" in ""|HEAD) BRANCH=main ;; esac
+fi
+echo "==> This Pi will deploy branch: $BRANCH"
 
 echo "==> Packages"
 apt-get update -q
@@ -76,11 +86,21 @@ if [ ! -e "$SECRETS/ntfy_url" ]; then
 fi
 
 if [ ! -e "$SECRETS/deploy.env" ]; then
-  cat > "$SECRETS/deploy.env" <<'EOF'
+  cat > "$SECRETS/deploy.env" <<EOF
 # Which repo and branch this Pi deploys. main = only merged code.
 REPO_URL=https://github.com/gunz0blazin/esp-soil.git
-BRANCH=main
+BRANCH=$BRANCH
 EOF
+else
+  current=$(sed -n 's/^BRANCH=//p' "$SECRETS/deploy.env")
+  if [ "$current" != "$BRANCH" ]; then
+    echo "    deploy.env: switching BRANCH from ${current:-unset} to $BRANCH"
+    if grep -q '^BRANCH=' "$SECRETS/deploy.env"; then
+      sed -i "s/^BRANCH=.*/BRANCH=$BRANCH/" "$SECRETS/deploy.env"
+    else
+      echo "BRANCH=$BRANCH" >> "$SECRETS/deploy.env"
+    fi
+  fi
 fi
 
 echo "==> Deploy command and timer"
