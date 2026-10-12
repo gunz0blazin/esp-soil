@@ -108,12 +108,6 @@ jobs:
       - name: Doc indexes are up to date
         run: ci/run.sh "doc indexes" python3 ci/toc.py --check $(git ls-files '*.md')
 
-      # On main (and pull requests into it) the docs must clone main and have no
-      # testing banner. See ci/branch_docs.py.
-      - name: Docs are set for main
-        if: github.base_ref == 'main' || github.ref_name == 'main'
-        run: ci/run.sh "docs set for main" python3 ci/branch_docs.py --check main
-
   deploy:
     name: Deploy playbook (dry run on the runner)
     runs-on: ubuntu-latest

@@ -1,8 +1,7 @@
 #!/bin/sh
 # One-time setup for the ESP-Soil Pi (Raspberry Pi OS 64-bit / Debian).
 #
-#   git clone -b main https://github.com/gunz0blazin/esp-soil.git /tmp/esp-soil      (site Pi)
-#   git clone -b testing https://github.com/gunz0blazin/esp-soil.git /tmp/esp-soil   (test box)
+#   git clone https://github.com/gunz0blazin/esp-soil.git /tmp/esp-soil
 #   sudo /tmp/esp-soil/deploy/bootstrap.sh
 #
 # Installs Docker, Ansible, git and rsync; creates /etc/esp-soil and asks for the

@@ -74,10 +74,10 @@ The whole first deployment in order. Each step links to its details below.
 
 **At home**
 
-1. **Merge `testing` into `main`**: switch the docs to `main` (`python3 ci/branch_docs.py main`), then open a pull request and merge it with **Create a merge commit**. The site Pi deploys `main`. See [Making a change](#making-a-change).
+1. **Merge `testing` into `main`** with a pull request, using **Create a merge commit**. The site Pi deploys `main`. See [Making a change](#making-a-change).
 2. **Set up the Pi.** Raspberry Pi OS Lite 64-bit, then the bootstrap from a clone of `main`. It isn't on the site network yet, so tell it which subnet the stakes will be on:
    ```bash
-   git clone -b testing https://github.com/gunz0blazin/esp-soil.git /tmp/esp-soil
+   git clone https://github.com/gunz0blazin/esp-soil.git /tmp/esp-soil
    sudo TS_ROUTES=10.42.0.0/24 /tmp/esp-soil/deploy/bootstrap.sh
    ```
    Open the Tailscale login link it prints. Details: [1. Set up the Pi](#1-set-up-the-pi).
@@ -114,7 +114,7 @@ From then on, every change goes `testing` → pull request → `main`: the Pi de
 SSH into the Pi:
 
 ```bash
-git clone -b testing https://github.com/gunz0blazin/esp-soil.git /tmp/esp-soil
+git clone https://github.com/gunz0blazin/esp-soil.git /tmp/esp-soil
 sudo /tmp/esp-soil/deploy/bootstrap.sh
 ```
 
@@ -232,7 +232,6 @@ The bootstrap detects where it's running and says so (`Running on: Raspberry Pi 
 
 The bootstrap deploys **the branch you cloned**, so a test Pi just needs a clone of `testing`:
 
-<!-- branch-docs: fixed -->
 ```bash
 git clone -b testing https://github.com/gunz0blazin/esp-soil.git /tmp/esp-soil
 sudo /tmp/esp-soil/deploy/bootstrap.sh
@@ -333,19 +332,12 @@ The `packages:` block at the bottom fetches `firmware/common.yaml` from `main` o
 ### Making a change
 
 1. Work on `testing` (or a branch off it) and push. The checks run on every push.
-2. **Switch the docs to `main`** before opening the pull request. On `testing`, the setup commands clone `testing` and the README shows a testing banner; on `main` they clone `main` with no banner:
+2. Open a pull request from `testing` into `main`. The checks run again; merge when they're green. Use **Create a merge commit** (not squash), so `testing` can catch up without a force-push.
+3. Let `testing` catch up with `main` so it's back to showing only new, unmerged work:
    ```bash
-   python3 ci/branch_docs.py main
-   git commit -am "Docs: switch to main for release" && git push
+   git checkout testing && git pull && git merge --ff-only origin/main && git push
    ```
-3. Open a pull request from `testing` into `main`. The checks run again, including one that fails if step 2 was skipped. Merge when they're green. Use **Create a merge commit** (not squash), so `testing` can catch up without a force-push.
-4. Let `testing` catch up with `main`, then switch its docs back to `testing`, so it's back to showing only new, unmerged work:
-   ```bash
-   git checkout testing && git pull && git merge --ff-only origin/main
-   python3 ci/branch_docs.py testing
-   git commit -am "Docs: back to testing" && git push
-   ```
-5. Dashboard changes are live within about 5 minutes; watch for the notification. For firmware changes, see below.
+4. Dashboard changes are live within about 5 minutes; watch for the notification. For firmware changes, see below.
 
 **Recommended GitHub settings** (Settings → Branches → add a rule for `main`): require a pull request before merging, and require the status checks **Firmware (ESPHome)**, **Dashboard (Prometheus + Grafana)** and **Deploy playbook (dry run on the runner)** to pass. That makes the checks a real gate instead of advice.
 

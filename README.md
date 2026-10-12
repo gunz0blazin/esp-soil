@@ -1,8 +1,13 @@
 # esp-soil
 
-<!-- branch-banner -->
-> **This is the `testing` branch.** It holds changes that are written but not yet merged into `main`, which is what the site runs. The setup commands on this branch clone `testing`, so a test box runs exactly this code. To see what's new here, compare the branches: [`main...testing`](https://github.com/gunz0blazin/esp-soil/compare/main...testing). Once a change is checked on a test box, it goes to `main` with a pull request.
-<!-- /branch-banner -->
+> **This is the `testing` branch.** It holds changes that are written but not yet running on the stakes or the dashboard server. `main` matches what's deployed right now. To see exactly what's new here, compare the branches: [`main...testing`](https://github.com/gunz0blazin/esp-soil/compare/main...testing). Once a change is flashed and checked on real hardware, it gets merged into `main` with a pull request.
+>
+> **In testing now**
+> - **Deployment pipeline:** merging to `main` deploys the dashboard to the site's Raspberry Pi automatically (`ansible-pull` on a timer, with phone notifications). Firmware is flashed from the ESPHome add-on in Home Assistant, which pulls the shared firmware from `main`. The stakes are reached from home over Tailscale. Every push and pull request is checked on GitHub first. See [Deployment](#deployment) and [`deploy/README.md`](deploy/README.md).
+> - **Shared firmware:** `firmware/common.yaml` is used by every stake; each stake has a small file with its number, IP and calibration (`firmware/stakes/`, plus a template for the Home Assistant add-on).
+> - **Encryption:** the Home Assistant connection and every firmware update are encrypted with one key (`api_key`). Stakes no longer reboot when Home Assistant isn't connected.
+> - **Board login:** the stake web page and `/metrics` require a username and password. Prometheus logs in using a password file. See [Board login](#board-login-testing).
+> - **Dashboard stack:** stakes are listed in `dashboard/prometheus/targets/` (adding one needs no restart), image versions are pinned, the Grafana password comes from `.env`, and the dashboard is now called **Soil Monitor**.
 
 Wi-Fi soil moisture stakes. Each stake is a small board with an ESP32-C3, a capacitive soil probe and an AHT10 temperature/humidity sensor in a 3D printed case. Push it into the soil like a plant marker and plug in a USB cable. It reports soil moisture, temperature, humidity and VPD over Wi-Fi to ESPHome / Home Assistant and Prometheus, and the included Grafana stack graphs it.
 
@@ -29,7 +34,7 @@ Wi-Fi soil moisture stakes. Each stake is a small board with an ESP32-C3, a capa
   - [Prometheus](#prometheus)
   - [Grafana](#grafana)
   - [Viewing on a phone or remotely](#viewing-on-a-phone-or-remotely)
-  - [Board login](#board-login)
+  - [Board login (testing)](#board-login-testing)
   - [Security notes](#security-notes)
   - [Maintenance](#maintenance)
   - [Troubleshooting](#troubleshooting)
@@ -395,7 +400,7 @@ The panels use `{{stake}}` as their legend. A sensor whose name doesn't start wi
 
 More detail is in [`dashboard/SETUP.md`](dashboard/SETUP.md).
 
-### Board login
+### Board login (testing)
 
 Each stake's web page and `/metrics` sit behind one username and password, set in ESPHome's `secrets.yaml`:
 
@@ -450,7 +455,7 @@ curl -s -u esp:your-long-password http://<stake-ip>/metrics | head     # reading
 | Task | How |
 |---|---|
 | Add a stake | Flash it with the same secrets, and add an entry to `prometheus/targets/stakes.yml`. No restart needed. Full steps: [`deploy/README.md`](deploy/README.md#adding-a-stake) |
-| Change the board password | See [Board login](#board-login) |
+| Change the board password | See [Board login](#board-login-testing) |
 | Remove a stake | Delete its block and restart Prometheus. Its old history stays until it ages out |
 | Update Prometheus and Grafana | Change the pinned version in `docker-compose.yml` on `testing`. The checks confirm the new tag exists with an ARM64 build; after the merge, the Pi pulls it |
 | Back up the history | Stop Prometheus (`docker compose stop prometheus`), copy the `prometheus-data` volume (named `esp-soil_prometheus-data` on the Pi, `dashboard_prometheus-data` if you started it by hand from `dashboard/`), then start it again |
