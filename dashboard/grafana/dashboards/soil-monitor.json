@@ -7,27 +7,64 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "editable": true,
   "refresh": "30s",
   "time": {
-    "from": "now-24h",
+    "from": "now-15m",
     "to": "now"
   },
   "timepicker": {
     "refresh_intervals": [
-      "15s",
+      "10s",
       "30s",
       "1m",
       "5m",
       "15m"
     ]
   },
+  "templating": {
+    "list": [
+      {
+        "name": "board",
+        "label": "Stake",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(esphome_sensor_value{board!=\"test-probe\"}, board)",
+          "refId": "board"
+        },
+        "definition": "label_values(esphome_sensor_value{board!=\"test-probe\"}, board)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "description": "One section per probe: the test probe first, then each stake. Short 15-minute window that refreshes every 30 seconds; widen it with the time picker.",
   "panels": [
     {
       "id": 1,
       "type": "row",
-      "title": "Right now",
+      "title": "Test probe",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -48,8 +85,8 @@
       "gridPos": {
         "x": 0,
         "y": 1,
-        "w": 8,
-        "h": 5
+        "w": 4,
+        "h": 4
       },
       "targets": [
         {
@@ -57,8 +94,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*moisture.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
-          "legendFormat": "{{stake}}",
+          "expr": "esphome_sensor_value{board=~\"test-probe\", name=~\"(?i).*moisture.*\"}",
+          "legendFormat": "Soil moisture",
           "refId": "A",
           "range": true,
           "instant": false
@@ -105,7 +142,7 @@
         },
         "colorMode": "background",
         "graphMode": "area",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "justifyMode": "center",
         "orientation": "auto"
       }
@@ -119,10 +156,10 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 8,
+        "x": 4,
         "y": 1,
         "w": 4,
-        "h": 5
+        "h": 4
       },
       "targets": [
         {
@@ -130,8 +167,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*temperature.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\") * 9 / 5 + 32",
-          "legendFormat": "{{stake}}",
+          "expr": "esphome_sensor_value{board=~\"test-probe\", name=~\"(?i).*temperature.*\"} * 9 / 5 + 32",
+          "legendFormat": "Temperature",
           "refId": "A",
           "range": true,
           "instant": false
@@ -178,7 +215,7 @@
         },
         "colorMode": "background",
         "graphMode": "area",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "justifyMode": "center",
         "orientation": "auto"
       }
@@ -192,10 +229,10 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 12,
+        "x": 8,
         "y": 1,
         "w": 4,
-        "h": 5
+        "h": 4
       },
       "targets": [
         {
@@ -203,8 +240,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*humidity.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
-          "legendFormat": "{{stake}}",
+          "expr": "esphome_sensor_value{board=~\"test-probe\", name=~\"(?i).*humidity.*\"}",
+          "legendFormat": "Humidity",
           "refId": "A",
           "range": true,
           "instant": false
@@ -247,7 +284,7 @@
         },
         "colorMode": "background",
         "graphMode": "area",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "justifyMode": "center",
         "orientation": "auto"
       }
@@ -261,10 +298,10 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 16,
+        "x": 12,
         "y": 1,
         "w": 4,
-        "h": 5
+        "h": 4
       },
       "targets": [
         {
@@ -272,8 +309,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*leaf.*vpd.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
-          "legendFormat": "{{stake}}",
+          "expr": "esphome_sensor_value{board=~\"test-probe\", name=~\"(?i).*leaf.*vpd.*\"}",
+          "legendFormat": "Leaf VPD",
           "refId": "A",
           "range": true,
           "instant": false
@@ -324,7 +361,7 @@
         },
         "colorMode": "background",
         "graphMode": "area",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "justifyMode": "center",
         "orientation": "auto"
       }
@@ -338,10 +375,10 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 20,
+        "x": 16,
         "y": 1,
         "w": 4,
-        "h": 5
+        "h": 4
       },
       "targets": [
         {
@@ -349,8 +386,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*raw.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
-          "legendFormat": "{{stake}}",
+          "expr": "esphome_sensor_value{board=~\"test-probe\", name=~\"(?i).*raw.*\"}",
+          "legendFormat": "Probe voltage",
           "refId": "A",
           "range": true,
           "instant": false
@@ -385,23 +422,79 @@
         },
         "colorMode": "background",
         "graphMode": "area",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "justifyMode": "center",
         "orientation": "auto"
       }
     },
     {
       "id": 7,
-      "type": "row",
-      "title": "Soil",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 6,
-        "w": 24,
-        "h": 1
+      "type": "stat",
+      "title": "WiFi signal",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
-      "panels": []
+      "gridPos": {
+        "x": 20,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "esphome_sensor_value{board=~\"test-probe\", name=~\"(?i).*wifi.*\"}",
+          "legendFormat": "WiFi signal",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dBm",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": -80
+              },
+              {
+                "color": "green",
+                "value": -70
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
     },
     {
       "id": 8,
@@ -413,9 +506,9 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 7,
-        "w": 24,
-        "h": 9
+        "y": 5,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -423,8 +516,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*moisture.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
-          "legendFormat": "{{stake}}",
+          "expr": "esphome_sensor_value{board=~\"test-probe\", name=~\"(?i).*moisture.*\"}",
+          "legendFormat": "Moisture",
           "refId": "A",
           "range": true,
           "instant": false
@@ -470,89 +563,16 @@
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true
+          "showLegend": false
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       }
     },
     {
       "id": 9,
-      "type": "timeseries",
-      "title": "Probe raw voltage (calibration)",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 16,
-        "w": 24,
-        "h": 6
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*raw.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
-          "legendFormat": "{{stake}}",
-          "refId": "A",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "volt",
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 5,
-            "gradientMode": "opacity",
-            "showPoints": "never",
-            "spanNulls": 300000,
-            "thresholdsStyle": {
-              "mode": "off"
-            },
-            "lineInterpolation": "smooth"
-          },
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 3
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 10,
-      "type": "row",
-      "title": "Climate",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 22,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
-      "id": 11,
       "type": "timeseries",
       "title": "Temperature",
       "datasource": {
@@ -560,8 +580,8 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 0,
-        "y": 23,
+        "x": 12,
+        "y": 5,
         "w": 12,
         "h": 8
       },
@@ -571,8 +591,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*temperature.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\") * 9 / 5 + 32",
-          "legendFormat": "{{stake}}",
+          "expr": "esphome_sensor_value{board=~\"test-probe\", name=~\"(?i).*temperature.*\"} * 9 / 5 + 32",
+          "legendFormat": "Temperature",
           "refId": "A",
           "range": true,
           "instant": false
@@ -620,16 +640,16 @@
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true
+          "showLegend": false
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       }
     },
     {
-      "id": 12,
+      "id": 10,
       "type": "timeseries",
       "title": "Humidity",
       "datasource": {
@@ -637,10 +657,10 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 12,
-        "y": 23,
-        "w": 12,
-        "h": 8
+        "x": 0,
+        "y": 13,
+        "w": 8,
+        "h": 7
       },
       "targets": [
         {
@@ -648,8 +668,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*humidity.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
-          "legendFormat": "{{stake}}",
+          "expr": "esphome_sensor_value{board=~\"test-probe\", name=~\"(?i).*humidity.*\"}",
+          "legendFormat": "Humidity",
           "refId": "A",
           "range": true,
           "instant": false
@@ -682,16 +702,16 @@
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true
+          "showLegend": false
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       }
     },
     {
-      "id": 13,
+      "id": 11,
       "type": "timeseries",
       "title": "VPD",
       "datasource": {
@@ -699,10 +719,10 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 0,
-        "y": 31,
-        "w": 24,
-        "h": 9
+        "x": 8,
+        "y": 13,
+        "w": 8,
+        "h": 7
       },
       "targets": [
         {
@@ -710,8 +730,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "label_replace(label_replace(esphome_sensor_value{name=~\"(?i).*vpd.*\"}, \"stake\", \"$1\", \"name\", \"(.*)\"), \"stake\", \"Plant $1\", \"name\", \"Plant ([0-9]+) .*\")",
-          "legendFormat": "{{stake}}",
+          "expr": "esphome_sensor_value{board=~\"test-probe\", name=~\"(?i).*vpd.*\"}",
+          "legendFormat": "Leaf VPD",
           "refId": "A",
           "range": true,
           "instant": false
@@ -769,20 +789,870 @@
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true
+          "showLegend": false
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Probe raw voltage (calibration)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 13,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "esphome_sensor_value{board=~\"test-probe\", name=~\"(?i).*raw.*\"}",
+          "legendFormat": "Raw voltage",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "volt",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": 300000,
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "lineInterpolation": "smooth"
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "row",
+      "title": "$board",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "repeat": "board"
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "Soil moisture",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "esphome_sensor_value{board=~\"$board\", name=~\"(?i).*moisture.*\"}",
+          "legendFormat": "Soil moisture",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 30
+              },
+              {
+                "color": "green",
+                "value": 45
+              },
+              {
+                "color": "blue",
+                "value": 85
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Temperature",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 21,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "esphome_sensor_value{board=~\"$board\", name=~\"(?i).*temperature.*\"} * 9 / 5 + 32",
+          "legendFormat": "Temperature",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "fahrenheit",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 85
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 16,
+      "type": "stat",
+      "title": "Humidity",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 21,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "esphome_sensor_value{board=~\"$board\", name=~\"(?i).*humidity.*\"}",
+          "legendFormat": "Humidity",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 40
+              },
+              {
+                "color": "blue",
+                "value": 70
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 17,
+      "type": "stat",
+      "title": "Leaf VPD",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "esphome_sensor_value{board=~\"$board\", name=~\"(?i).*leaf.*vpd.*\"}",
+          "legendFormat": "Leaf VPD",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pressurekpa",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "#73BF69",
+                "value": 0.4
+              },
+              {
+                "color": "green",
+                "value": 0.8
+              },
+              {
+                "color": "purple",
+                "value": 1.2
+              },
+              {
+                "color": "red",
+                "value": 1.6
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 18,
+      "type": "stat",
+      "title": "Probe voltage",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 21,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "esphome_sensor_value{board=~\"$board\", name=~\"(?i).*raw.*\"}",
+          "legendFormat": "Probe voltage",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "volt",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 19,
+      "type": "stat",
+      "title": "WiFi signal",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 21,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "esphome_sensor_value{board=~\"$board\", name=~\"(?i).*wifi.*\"}",
+          "legendFormat": "WiFi signal",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dBm",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": -80
+              },
+              {
+                "color": "green",
+                "value": -70
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "Soil moisture",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "esphome_sensor_value{board=~\"$board\", name=~\"(?i).*moisture.*\"}",
+          "legendFormat": "Moisture",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": 300000,
+            "thresholdsStyle": {
+              "mode": "line+area"
+            },
+            "lineInterpolation": "smooth"
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "transparent",
+                "value": 40
+              }
+            ]
+          },
+          "min": 0,
+          "max": 100,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Temperature",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 25,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "esphome_sensor_value{board=~\"$board\", name=~\"(?i).*temperature.*\"} * 9 / 5 + 32",
+          "legendFormat": "Temperature",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "fahrenheit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": 300000,
+            "thresholdsStyle": {
+              "mode": "area"
+            },
+            "lineInterpolation": "smooth"
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 70
+              },
+              {
+                "color": "transparent",
+                "value": 85
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "Humidity",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "esphome_sensor_value{board=~\"$board\", name=~\"(?i).*humidity.*\"}",
+          "legendFormat": "Humidity",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": 300000,
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "lineInterpolation": "smooth"
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "max": 100,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "VPD",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 33,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "esphome_sensor_value{board=~\"$board\", name=~\"(?i).*vpd.*\"}",
+          "legendFormat": "Leaf VPD",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pressurekpa",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": 300000,
+            "thresholdsStyle": {
+              "mode": "area"
+            },
+            "lineInterpolation": "smooth"
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#5794F2",
+                "value": null
+              },
+              {
+                "color": "#73BF69",
+                "value": 0.4
+              },
+              {
+                "color": "#37872D",
+                "value": 0.8
+              },
+              {
+                "color": "#8F3BB8",
+                "value": 1.2
+              },
+              {
+                "color": "#E02F44",
+                "value": 1.6
+              }
+            ]
+          },
+          "min": 0,
+          "max": 2.2,
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "Probe raw voltage (calibration)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 33,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "esphome_sensor_value{board=~\"$board\", name=~\"(?i).*raw.*\"}",
+          "legendFormat": "Raw voltage",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "volt",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": 300000,
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "lineInterpolation": "smooth"
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
         }
       }
     }
-  ],
-  "templating": {
-    "list": []
-  },
-  "annotations": {
-    "list": []
-  },
-  "description": "Soil moisture, temperature, humidity and VPD for every ESP-Soil stake. Each sensor is labelled by its stake (Plant N)."
+  ]
 }
