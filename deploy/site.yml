@@ -32,6 +32,8 @@
     manage_host: true
     # Commit of the last failed deploy, so a failure is notified once, not every 5 minutes.
     failed_marker: /var/lib/esp-soil/last_failed_commit
+    # Commit of the last successful deploy, so every new commit gets a notification.
+    deployed_marker: /var/lib/esp-soil/deployed_commit
 
   tasks:
     - name: Deploy
@@ -211,13 +213,27 @@
             fail_msg: Prometheus is up but its targets API didn't respond.
             quiet: true
 
+        # Down = no good reading in the last minute. One missed scrape (an ESP32's web
+        # server is slow and can time out now and then) doesn't count.
+        - name: Find stakes with no good reading in the last minute
+          ansible.builtin.uri:
+            url: "{{ prometheus_url }}/api/v1/query?query={{ 'max_over_time(up{job=\"esphome\"}[1m]) == 0' | urlencode }}"
+            return_content: true
+          register: down_query
+          ignore_errors: true
+
         - name: Summarize
           ansible.builtin.set_fact:
             stakes_total: "{{ targets.json.data.activeTargets | length }}"
-            stakes_up: "{{ targets.json.data.activeTargets | selectattr('health', 'equalto', 'up') | list | length }}"
             stakes_down: >-
-              {{ targets.json.data.activeTargets | rejectattr('health', 'equalto', 'up')
-                 | map(attribute='labels.board') | list }}
+              {{ (down_query.json.data.result | map(attribute='metric.board') | list | sort)
+                 if (down_query.json is defined)
+                 else (targets.json.data.activeTargets | rejectattr('health', 'equalto', 'up')
+                       | map(attribute='labels.board') | list) }}
+
+        - name: Count stakes up
+          ansible.builtin.set_fact:
+            stakes_up: "{{ (stakes_total | int) - (stakes_down | length) }}"
 
         - name: Report
           ansible.builtin.debug:
@@ -251,16 +267,23 @@
             path: "{{ failed_marker }}"
             state: absent
 
+        - name: Remember the deployed commit
+          ansible.builtin.copy:
+            content: "{{ commit.stdout }}"
+            dest: "{{ deployed_marker }}"
+            mode: "0644"
+          register: new_commit
+
         - name: Did this run change anything?
           ansible.builtin.set_fact:
             deploy_changed: >-
               {{ sync is changed or web_pw is changed or env_file is changed or up is changed
-                 or units is changed }}
+                 or units is changed or new_commit is changed }}
 
         - name: Report changes
           ansible.builtin.debug:
             msg: >-
-              {{ 'Changes applied.' if deploy_changed | bool else 'Nothing new: already up to date, nothing restarted.' }}
+              {{ 'New commit or changes applied.' if deploy_changed | bool else 'Nothing new: already up to date, nothing restarted.' }}
 
         # Quiet when nothing changed, so the 5-minute runs don't spam the phone.
         - name: Notify success

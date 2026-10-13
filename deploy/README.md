@@ -190,13 +190,13 @@ To change one, edit the file (`sudo nano /etc/esp-soil/esp_web_password`, no tra
 
 **Notifications:** install the ntfy app on your phone and subscribe to the same topic. Anyone who knows a public topic name can read it, so use a long random name, or a protected topic with `ntfy_token`. The 5-minute runs are silent unless something happens:
 
-- ✅ **ESP-Soil deployed**: a run that changed something. The commit, and how many stakes Prometheus can reach (with the names of any that are down)
+- ✅ **ESP-Soil deployed**: a new commit, or a run that changed something on the box. The commit, and how many stakes are up (with the names of any that are down). A stake only counts as down if every reading in the last minute failed, so one slow reply doesn't trigger it
 - ❌ **ESP-Soil deploy FAILED** (high priority): the commit and the step that failed. Sent once per failing commit; the timer keeps retrying quietly
 - ✅ **ESP-Soil deploy working again**: the first good run after a failure
 
 ### How the deploy works
 
-`esp-soil-deploy` runs `ansible-pull`: it pulls `main` into `/opt/esp-soil/src` and runs [`site.yml`](site.yml), **every 5 minutes, whether or not there are new commits**. With nothing new the playbook changes nothing, restarts nothing and sends no notification; a deploy that failed is simply tried again on the next run. The playbook:
+`esp-soil-deploy` runs `ansible-pull`: it pulls `main` into `/opt/esp-soil/src` and runs [`site.yml`](site.yml), **every 5 minutes, whether or not there are new commits**. With no new commit the playbook changes nothing, restarts nothing and sends no notification; a deploy that failed is simply tried again on the next run. The playbook:
 
 1. Checks the secrets exist.
 2. **Validates before touching anything live**: runs `promtool` on the new Prometheus config and checks the compose file. If either fails, the running stack is left exactly as it was.
