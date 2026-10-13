@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 7,
+  "version": 8,
   "editable": true,
   "refresh": "30s",
   "time": {
@@ -62,13 +62,29 @@
   "description": "One section per probe: the test probe first, then each stake. Short 15-minute window that refreshes every 30 seconds; widen it with the time picker.",
   "panels": [
     {
+      "id": 104,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## this worked test 1"
+      }
+    },
+    {
       "id": 100,
       "type": "row",
       "title": "Test probe: soil moisture",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 2,
         "w": 24,
         "h": 1
       },
@@ -84,7 +100,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 1,
+        "y": 3,
         "w": 24,
         "h": 12
       },
@@ -165,7 +181,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 13,
+        "y": 15,
         "w": 24,
         "h": 1
       },
@@ -182,7 +198,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 16,
         "w": 4,
         "h": 4
       },
@@ -255,7 +271,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 14,
+        "y": 16,
         "w": 4,
         "h": 4
       },
@@ -328,7 +344,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 14,
+        "y": 16,
         "w": 4,
         "h": 4
       },
@@ -397,7 +413,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 14,
+        "y": 16,
         "w": 4,
         "h": 4
       },
@@ -474,7 +490,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 14,
+        "y": 16,
         "w": 4,
         "h": 4
       },
@@ -535,7 +551,7 @@
       },
       "gridPos": {
         "x": 20,
-        "y": 14,
+        "y": 16,
         "w": 4,
         "h": 4
       },
@@ -604,7 +620,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 20,
         "w": 12,
         "h": 8
       },
@@ -679,7 +695,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 18,
+        "y": 20,
         "w": 12,
         "h": 8
       },
@@ -756,7 +772,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 28,
         "w": 8,
         "h": 7
       },
@@ -818,7 +834,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 26,
+        "y": 28,
         "w": 8,
         "h": 7
       },
@@ -905,7 +921,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 26,
+        "y": 28,
         "w": 8,
         "h": 7
       },
